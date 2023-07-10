@@ -1,0 +1,8 @@
+library(httr)
+dataset <- httr::GET("https://www.kaggle.com/api/v1/competitions/data/download/10445/train.csv", 
+                 httr::authenticate(username, authkey, type = "basic"))
+
+temp <- tempfile()
+download.file(dataset$url,temp)
+data <- read.csv(unz(temp, "train.csv"))
+unlink(temp)

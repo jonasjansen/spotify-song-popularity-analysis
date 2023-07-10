@@ -1,0 +1,53 @@
+---
+title: "Data Analytics Project - Proposal"
+author: "STAT 420, Summer 2023 - Soumya Nanda, Noam Isachar, Jonas Jansen"
+date: ''
+output:
+  html_document:
+  theme: readable
+  toc: yes
+  pdf_document: default
+urlcolor: cyan
+---
+
+------------------------------------------------------------------------
+
+```{r setup, echo = FALSE, message = FALSE, warning = FALSE}
+options(scipen = 1, digits = 4, width = 80, fig.alin = "center")
+```
+
+### 1. Team Members:
+
+- Soumya Nanda - srnanda2
+- Noam Isachar - noami2
+- Jonas Jansen - jonasj2
+
+
+### 2. Project Title:
+
+Title Placeholder
+
+
+### 3. Data File Description:
+
+A brief statement of the business, science, research, or personal interest you have in the data set which you hope to explore
+
+### 4. Data Background Information
+
+Background information on the data sets, including specific citation of their source (so that I can also access it)
+
+
+### 5. Team Interest
+
+A brief statement of the business, science, research, or personal interest you have in the data set which you hope to explore
+
+### 6. Data in R evidence
+
+Evidence that the data can be loaded into R. Load the data, and print the first few values of the response variable as evidence.
+
+```{r}
+data <- read.csv("data/train.csv")
+
+head(data)
+```
+
