@@ -1,0 +1,48 @@
+---
+title: "Data Analytics Project - Proposal"
+author: "STAT 420, Summer 2023 - Soumya Nanda, Noam Isachar, Jonas Jansen"
+date: ''
+output:
+  html_document:
+  theme: readable
+  toc: yes
+  pdf_document: default
+urlcolor: cyan
+---
+
+------------------------------------------------------------------------
+
+```{r setup, echo = FALSE, message = FALSE, warning = FALSE}
+options(scipen = 1, digits = 4, width = 80, fig.alin = "center")
+```
+
+### 1. Team Members:
+
+-   Soumya Nanda - srnanda2
+-   Noam Isachar - noami2
+-   Jonas Jansen - jonasj2
+
+### 2. Project Title:
+
+#### Predicting Song Popularity
+
+### 3. Data File Description:
+
+The dataset is called **Spotify_1Million_Tracks** and it contains 1.47M observations (songs) and 20 variables. We will try predicting the song's popularity which is determined by several factors, including the number of streams, user engagement, and how recently the song was released. The dataset also includes other details about each songs like the song's name and artist, and a few metrics from Spotify such as the danceabillity, energy and acousticness (numerical) as well as the key, time signature, year and genre (categorical).
+
+### 4. Data Background Information
+
+The dataset's source is here: <https://www.kaggle.com/datasets/amitanshjoshi/spotify-1million-tracks>[.\
+](#0)The data was extracted from the Spotify platform using the Python library "Spotipy", which allows users to access music data provided via APIs. It includes over 1 million tracks with 19 features between 2000 and 2023. Also, there is a total of 61,445 unique artists and 82 genres in the data.
+
+### 5. Team Interest
+
+The questions we would like to answer is whether a song's popularity could be predicted, potentially even prior to it's released, based on the song's musical characteristics and technical features. Is it possible to point out what can make a song more popular?
+
+### 6. Data in R evidence
+
+```{r}
+data <- read.csv("data/spotify_data.csv")
+
+head(data)
+```
