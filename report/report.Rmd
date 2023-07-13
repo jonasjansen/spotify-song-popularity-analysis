@@ -1,0 +1,62 @@
+---
+title: "Predicting Song Popularity"
+subtitle: "STAT 420, Summer 2023, UIUC - Final Data Project"
+author: "Soumya Nanda, Jonas Jansen, Noam Isachar"
+output:
+  html_document:
+  theme: readable
+  toc: yes
+  pdf_document: default
+urlcolor: cyan
+---
+
+```{r setup, echo = FALSE, message = FALSE, warning = FALSE}
+options(scipen = 1, digits = 4, width = 80, fig.alin = "center")
+```
+
+------------------------------------------------------------------------
+
+# Introduction
+
+
+
+
+
+
+
+
+
+# Methods
+
+
+
+
+
+
+
+
+
+# Results
+
+
+
+
+
+
+
+
+
+# Discussion
+
+
+
+
+
+
+
+
+
+# Appendix
+
+
+The report was composed and written by Soumya Nanda, Jonas Jansen and Noam Isachar.
