@@ -18,45 +18,58 @@ options(scipen = 1, digits = 4, width = 80, fig.alin = "center")
 
 # Introduction
 
+In this analysis project we decided to work on the [Spotify_1Million_Tracks](https://www.kaggle.com/datasets/amitanshjoshi/spotify-1million-tracks) which has popularity and other songs features and measures gathered by Spotify about over 1 Million tracks. Our main goal is to discover what makes a song popular and what impact different characteristics of a songs have on the song's popularity. The model we will build will also be able to predict a song's popularity. 
 
+The dataset is published and available on Kaggle and the data was extracted from the Spotify API using the Python library Spotipy. It contains information about over a Million songs from over 60,000 artists and across 82 genres between 2000 and 2023. The dataset also contains some interesting categorical variables which are some facts about each song such as the key (A, C, G#...), the mode (Major or Minor) and the time signature. In addition to those, there are numerical features about each songs which are computed by Spotify algorithms. To name a few, we have the danceability of the song, the energy, the acousticness and the valence, all in the range of 0.0 to 1.0.
 
-
-
-
-
-
+Having all this musically detailed and in-depth information about so many songs provides the opportunity to use a linear model for researching what features of a song contribute to it's chance of being popular, how a song should ideally be for it to be popular, and verify the possibility of predicting how popular a song is.
+Knowing all the above can drive certain decisions and directions when writing a song with the goal of achieving popularity.
 
 # Methods
 
+```{r}
+data <- read.csv("../data/spotify_data.csv")
+str(data)
+```
 
+```{r}
+data <- subset(data, select = -c(X, track_id))
 
+data$mode <- ifelse(data$mode == 1, "major", "minor")
 
+data$year <- factor(data$year)
+data$genre <- factor(data$genre)
+data$key <- factor(data$key)
+data$mode <- factor(data$mode)
+data$time_signature <- factor(data$time_signature)
 
+str(data)
+```
 
+```{r}
+colSums(is.na(data))
+```
 
+```{r}
+summary(data)
+```
 
+CHECK ZERO POPULARITY!!
+
+```{r}
+zero_pop = data[data$popularity == 0, ]
+barplot(table(zero_pop$year))
+```
+
+```{r}
+simple_model <- lm(popularity ~ year + genre, data = data)
+summary(simple_model)
+```
 
 # Results
 
-
-
-
-
-
-
-
-
 # Discussion
 
-
-
-
-
-
-
-
-
 # Appendix
-
 
 The report was composed and written by Soumya Nanda, Jonas Jansen and Noam Isachar.
