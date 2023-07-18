@@ -367,8 +367,8 @@ Jonas Jansen</h4>
 </div>
 <div id="project-title" class="section level3">
 <h3>2. Project Title:</h3>
-<div id="predicting-song-popularity" class="section level4">
-<h4>Predicting Song Popularity</h4>
+<div id="explaining-and-predicting-song-popularity" class="section level4">
+<h4>Explaining and Predicting Song Popularity</h4>
 </div>
 </div>
 <div id="data-file-description" class="section level3">
@@ -379,8 +379,16 @@ predicting the song’s popularity which is determined by several factors,
 including the number of streams, user engagement, and how recently the
 song was released. The dataset also includes other details about each
 songs like the song’s name and artist, and a few metrics from Spotify
-such as the danceabillity, energy and acousticness (numerical) as well
-as the key, time signature, year and genre (categorical).</p>
+such as the danceability, energy and acousticness (numerical) as well as
+the key, time signature, year and genre (categorical).</p>
+<p>Note that we chose this dataset and started to work on it before the
+staff sent the email that disallows response in the range between 0 and
+100. We are excited about this dataset and analysis and don’t think that
+the response closed range will take anything from the assignment or the
+learning experience so we hope to be able to go on with this dataset. If
+necessary, we can transform the response variable to the continuous
+range, or use the number of streams and plays from another dataset which
+is not limited in range but just positive.</p>
 </div>
 <div id="data-background-information" class="section level3">
 <h3>4. Data Background Information</h3>
@@ -393,14 +401,16 @@ in the data.</p>
 </div>
 <div id="team-interest" class="section level3">
 <h3>5. Team Interest</h3>
-<p>The questions we would like to answer is whether a song’s popularity
-could be predicted, potentially even prior to it’s released, based on
-the song’s musical characteristics and technical features. Is it
-possible to point out what can make a song more popular?</p>
+<p>The questions we would like to answer are which features of a song
+impact its potential to be popular, and as a consequence is it possible
+to say how to write a song with the goal of it becoming a hit. Also we
+are interested at the challenge of predicting a song popularity
+reliably, potentially even prior to it’s released, based on the song’s
+musical characteristics and technical features.</p>
 </div>
 <div id="data-in-r-evidence" class="section level3">
 <h3>6. Data in R evidence</h3>
-<pre class="r"><code>data &lt;- read.csv(&quot;data/spotify_data.csv&quot;)
+<pre class="r"><code>data &lt;- read.csv(&quot;../data/spotify_data.csv&quot;)
 
 head(data)</code></pre>
 <pre><code>##   X   artist_name       track_name               track_id popularity year
