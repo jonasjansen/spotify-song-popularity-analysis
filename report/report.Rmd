@@ -18,24 +18,38 @@ options(scipen = 1, digits = 4, width = 80, fig.alin = "center")
 
 # Introduction
 
-In this analysis project we decided to work on the [Spotify_1Million_Tracks](https://www.kaggle.com/datasets/amitanshjoshi/spotify-1million-tracks) which has popularity and other songs features and measures gathered by Spotify about over 1 Million tracks. Our main goal is to discover what makes a song popular and what impact different characteristics of a songs have on the song's popularity. The model we will build will also be able to predict a song's popularity. 
+In this analysis project we decided to work on the [Spotify_1Million_Tracks](https://www.kaggle.com/datasets/amitanshjoshi/spotify-1million-tracks) which has popularity and other songs features and measures gathered by Spotify about over 1 Million tracks. Our main goal is to discover what makes a song popular and what impact different characteristics of a songs have on the song's popularity. The model we will build will also be able to predict a song's popularity.
 
 The dataset is published and available on Kaggle and the data was extracted from the Spotify API using the Python library Spotipy. It contains information about over a Million songs from over 60,000 artists and across 82 genres between 2000 and 2023. The dataset also contains some interesting categorical variables which are some facts about each song such as the key (A, C, G#...), the mode (Major or Minor) and the time signature. In addition to those, there are numerical features about each songs which are computed by Spotify algorithms. To name a few, we have the danceability of the song, the energy, the acousticness and the valence, all in the range of 0.0 to 1.0.
 
-Having all this musically detailed and in-depth information about so many songs provides the opportunity to use a linear model for researching what features of a song contribute to it's chance of being popular, how a song should ideally be for it to be popular, and verify the possibility of predicting how popular a song is.
-Knowing all the above can drive certain decisions and directions when writing a song with the goal of achieving popularity.
+Having all this musically detailed and in-depth information about so many songs provides the opportunity to use a linear model for researching what features of a song contribute to it's chance of being popular, how a song should ideally be for it to be popular, and verify the possibility of predicting how popular a song is. Knowing all the above can drive certain decisions and directions when writing a song with the goal of achieving popularity.
 
 # Methods
+
+We start by importing the required libraries.
+
+```{r, warning = FALSE}
+library(knitr)
+library(ggplot2)
+library(GGally)
+library(MASS)
+library(gridExtra)
+```
+
+Let's have the first glance of the data.
 
 ```{r}
 data <- read.csv("../data/spotify_data.csv")
 str(data)
 ```
 
-```{r}
-data <- subset(data, select = -c(X, track_id))
+## Data Preprocessing
 
+We can get rid of the first column which is the index and also of the "track_id" column which is useless to us. For clarity, let's change the values of "mode" from 0 and 1 to "minor" and "major" and replace the duration from milliseconds to minutes. Finally, we can create factor variables out of some of the columns.
+
+```{r}
 data$mode <- ifelse(data$mode == 1, "major", "minor")
+data$duration_m <- data$duration_ms / 1000 / 60
 
 data$year <- factor(data$year)
 data$genre <- factor(data$genre)
@@ -43,28 +57,292 @@ data$key <- factor(data$key)
 data$mode <- factor(data$mode)
 data$time_signature <- factor(data$time_signature)
 
+data <- subset(data, select = -c(X, track_id, duration_ms))
+
 str(data)
 ```
+
+Looks good. The dataset now 18 variables, two of which are the artist name and track name which we won't use in the model but only for exploration and interpretation. That leaves us with the "popularity" variable which we are going to use as the response and 15 other variables that can help us as predictors. 10 of which are numeric and 5 are categorical factor variables.
+
+Now let's check for null values.
 
 ```{r}
 colSums(is.na(data))
 ```
 
+There are none.
+
+## Data Exploration and Analysis
+
+### Data Description
+
+We can now look at the summary of the data which shows statistics of the different variables.
+
 ```{r}
 summary(data)
 ```
 
-CHECK ZERO POPULARITY!!
+Let's explain the variables we have here. Our goal is to explain and predict the "popularity" variable, which is calculated by an algorithm of Spotify, and according to them it "is based, in the most part, on the total number of plays the track has had and how recent those plays are".
+
+Besides the artist and track name and the year and genre which are obvious, we have some more factual categorical variables:
+
+1.  Key: ranges from 0 to 11 and indicates the key the track is in starting from 0 = C.
+2.  Mode: refers to whether the track is in major or minor scale.
+3.  Time signature: An estimated time signature which specifies how many beats are in a bar.
+
+The numerical variables mostly contain audio features of the track:
+
+1.  Danceability: Danceability describes how suitable a track is for dancing based on a combination of musical elements including tempo, rhythm stability, beat strength, and overall regularity.
+2.  Energy: Energy is a measure from 0.0 to 1.0 and represents a perceptual measure of intensity and activity. Typically, energetic tracks feel fast, loud, and noisy.
+3.  Loudness: The overall loudness of a track in decibels (dB).
+4.  Speechiness: Speechiness detects the presence of spoken words in a track.
+5.  Acousticness: A confidence measure from 0.0 to 1.0 of whether the track is acoustic.
+6.  Instrumentalness: Predicts whether a track contains no vocals. "Ooh" and "aah" sounds are treated as instrumental in this context.
+7.  Liveness: Detects the presence of an audience in the recording.
+8.  Valence: A measure from 0.0 to 1.0 describing the musical positiveness conveyed by a track. Tracks with high valence sound more positive (e.g. happy, cheerful, euphoric), while tracks with low valence sound more negative (e.g. sad, depressed, angry).
+9.  Tempo: The overall estimated tempo of a track in beats per minute (BPM).
+10. Duration: The duration of the track in minutes.
+
+More on the variables can be read on the [Spotify API documentation](https://developer.spotify.com/documentation/web-api).
+
+The data looks clean but there is one case of outliers in the duration of tracks. Let's keep track with maximum length of 40 minutes, which is by itself very unusual but we can still think of some songs of that length (The Orb - The Blue Room). In fact, any track longer than 40 minutes has to be considered as an album by the British Phonographic Industry. In addition, it is safe to say that the maximum duration of 100 minutes is not something we want to base our model on as it doesn't realistically reflect real songs.
 
 ```{r}
-zero_pop = data[data$popularity == 0, ]
-barplot(table(zero_pop$year))
+data <- data[data$duration_m <= 40, ]
+summary(data$duration_m)
+```
+
+One other thing we want to verify is the 0 values n tempo.
+
+```{r}
+head(data[data$tempo == 0, 1:2], 10)
+```
+
+After listening to some of those we can verify that the 0 for tempo are legit values and these songs don't follow a beat.
+
+### Numerical Variables Analysis
+
+Let's start exploring the numerical variables and the relationships between them.
+
+```{r}
+num_vars <- sapply(data, is.numeric)
+num_data <- data[, num_vars]
+num_data_sample <- num_data[sample(nrow(num_data), 10000), ]
+
+pair_plot_sample = ggpairs(num_data_sample, upper = list(continuous = wrap("cor", size = 6))) +
+  theme_bw() + 
+  theme(axis.line=element_blank(),
+        axis.text=element_blank(),
+        axis.ticks=element_blank(),
+        text = element_text(size = 30))
+```
+
+```{r, warning = FALSE, fig.width=25}
+print(pair_plot_sample, progress = F)
+```
+
+We sampled 10,000 observations from the dataset for this pair-plot since doing it on the entire dataset would take much more time and also flood the plots with so much dots that they would become all black. A sample of 10,000 is more than enough to show the relationship between variables.
+
+Let's highlight some interesting points:
+
+-   The first thing to observe is how difficult it is to write a popular song. The distribution is left-skewed and the mean is only 18.4 out of 100.
+
+-   Looking at the main diagonal where the distribution of each variable is plotted, we can see that many of them including the popularity are skewed which hints that transformations will be needed if we want better prediction results. We will consider log, square-root, inverse and box-cox transformations for this task.
+
+-   In terms of correlation with the response we don't have significant results which makes it more challenging to select predictors.
+
+-   Energy has a strong positive correlation with loudness and a strong negative correlation with acousticness. This suggests that we might want to be careful using all of them in order to avoid collinearity issues. Also danceability and valence have some correlation we should take note of.
+
+-   In general, we might want to avoid using the loudness and tempo variables in our model since some of the algorithm-generated variables are probably based on them in some way.
+
+-   Some other observations jump out which are not related to the model we intend to build. Regarding the instrumentalness, it has some positive correlation with the duration and negative correlation with the loudness and valence, which makes sense. Many of the instrumental songs we know are indeed longer than usual and also have some quiet gloomy parts. The tempo has a positive correlation with the loudness and negative correlation with the acousticness. In reality faster and upbeat songs are usually louder than slower ones, and acoustic songs we know do tend to be slower in BPM. One more relationship that is logical is the positive one between liveness and speechiness. Concerts and live version have some spoken words in them when the artists communicate with the crowd.
+
+One interesting analysis to try is to bin the popularity into 10 chunks and see the difference in each variable across the different bins of popularity.
+
+```{r, fig.width=20, fig.height=15}
+data$popularity_bins <- cut(data$popularity, breaks = 10)
+plot_list <- list()
+
+for (column in names(data)) {
+  if (column != "popularity_bins" && column != "popularity" && num_vars[column]) {
+    plot <- ggplot(data, aes(x = popularity_bins, y = .data[[column]], fill = popularity_bins)) +
+      geom_boxplot() +
+      labs(x = "Popularity Bins", y = column, title = paste("Distribution of", column, "by Popularity Bins")) +
+      theme(axis.text.x = element_blank(), legend.position = "none") +
+      facet_grid(~ popularity_bins, scales = "free_x", space = "free_x", switch = "x")
+    
+    plot_list[[column]] <- plot
+  }
+}
+
+grid.arrange(grobs = plot_list, ncol = 2)
+data <- subset(data, select = -c(popularity_bins))
+```
+
+From the plots above we can see that across all the numerical predictors we have less variance and outliers as the popularity grows. They all stabilize around some range in the higher bins.
+
+We can see a weak positive trend in the danceability, which resembles the one of the valence. This means that the popular songs tend to be happier and more danceable.
+
+Also the energy and loudness share a similar behavior between them, but the loudness has much less variance. Anyway both of them don't seem to have an observable relationship with the popularity.
+
+Another trend to note is that the instrumentalness and speechiness massively decrease and are almost at 0 when the popularity grows. This reveals another tip for making a popular song: don't make it instrumental are include spoken speech in it.
+
+Maybe the clearest trend above is the negative one between the acousticness and the popularity. There are some popular acoustic songs but it sure doesn't raise your chances.
+
+As for the tempo, its mean is pretty stable across all the bins, but the chance for outliers on both sides are decreasing as the popularity increases. Maybe a polynomial transformation will work here?
+
+Finally, the chance of a long song to be popular is very low as most of the longer songs are in the lower half of the popularity bins.
+
+### Categorical Variables Analysis
+
+Now let's take a look at the impact of the categorical predictors. We start with the genre, and since it has many values and plotting would be difficult, what we can do is check the genres with the best and worst mean popularity.
+
+```{r}
+mean_popularity_by_genre <- aggregate(popularity ~ genre, data, mean)
+
+best_mean_popularity_by_genre <- mean_popularity_by_genre[order(-mean_popularity_by_genre$popularity), ]
+worst_mean_popularity_by_genre <- mean_popularity_by_genre[order(mean_popularity_by_genre$popularity), ]
 ```
 
 ```{r}
-simple_model <- lm(popularity ~ year + genre, data = data)
-summary(simple_model)
+print(head(best_mean_popularity_by_genre, 10))
 ```
+
+```{r}
+print(head(worst_mean_popularity_by_genre, 10))
+```
+
+As expected, the genre greatly impacts the popularity. There is a huge difference in the mean popularity across genres so this is definitely a predictor we want to include in the model. Let's do the same check on the year predictor.
+
+```{r, fig.width=25, fig.height=6}
+mean_popularity_by_year <- aggregate(data$popularity, by = list(year = data$year), mean)
+mean_popularity_by_year <- reshape2::melt(mean_data, id.vars = "year")
+
+ggplot(mean_popularity_by_year, aes(x = year, y = value, group = variable, color = variable)) +
+  geom_line() +
+  geom_point() +
+  labs(x = "Year", y = "Mean Popularity", title = "Mean Popularity by Year") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        text = element_text(size = 22)) +
+  theme(legend.position = "none")
+```
+
+Since the popularity is based also on whether the track was recently played, we see greater popularity to recent songs which makes sense. However, our main goal is to understand what elements of a song have impact on making it popular, and when writing a song it is not possible to change the year it is released in. In other words, the year is not going to help us say what makes a song popular since the popularity is biased towards recent songs and the time is not something an artist controls.
+
+In order to be able to explain the model but also utilize the year in our predictions, we will use the year variable to interact with all the other variables, and then we can select each year and see how the parameters of the other variables change. For example, by interacting the year with the rest we will be able to select the year 2023 and see how a song should be in order to maximize its chances of popularity in 2023.
+
+Despite all that, we are still curious to see the variation in the characteristics of songs across different years, and see what features of songs from different years contribute to its popularity right now. Let's see the mean of each variable as a function of the year, and also a plot of correlation with the popularity by year.
+
+```{r, fig.width=25, fig.height=8}
+mean_data <- aggregate(data[, num_vars], by = list(year = data$year), mean)
+mean_data = subset(mean_data, select = -c(popularity, tempo, duration_m, loudness))
+mean_melted <- reshape2::melt(mean_data, id.vars = "year")
+
+ggplot(mean_melted, aes(x = year, y = value, group = variable, color = variable)) +
+  geom_line() +
+  geom_point() +
+  labs(x = "Year", y = "Mean Value",
+       title = "Mean of [0, 1] Ranged Numerical Variables as a Function of Year") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        text = element_text(size = 22))
+```
+
+```{r, fig.width=25, fig.height=8}
+cor_data <- data.frame(year = unique(data$year))
+cor_data$year <- as.numeric(as.character(cor_data$year))
+
+for (var in names(num_vars[num_vars])) {
+  if (var != "popularity"){
+    cor_values <- sapply(unique(data$year), function(y) {
+      subset_data <- subset(data, as.numeric(as.character(year)) == y)
+      cor(subset_data[[var]], subset_data$popularity)
+    })
+    
+    cor_data[var] <- cor_values
+  }
+}
+
+cor_melted <- reshape2::melt(cor_data, id.vars = "year")
+
+ggplot(cor_melted, aes(x = year, y = value, group = variable, color = variable)) +
+  geom_line() +
+  geom_point() +
+  labs(x = "Year", y = "Correlation with Popularity",
+       title = "Correlation with Popularity Over the Years") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        text = element_text(size = 22))
+```
+
+To our surprise, there are no significant trends in the means over the years. The only visible changes are the drop in the valence which generally means that songs became sadder, and the rise and fall of energy that reached a peak around 2010.
+
+In the correlations plot we see a clear rise in the impact danceability and energy have on the popularity, especially after 2020. Groovy energetic songs are becoming more and more likable. The duration went from 0.0 to almost -0.2 at some point, which highlights that popular songs are getting shorter.
+
+Now let's see how the time signature, key and mode affect the popularity.
+
+```{r, fig.height=10}
+ts_pop = ggplot(data, aes(x = time_signature, y = popularity, fill=time_signature)) +
+  geom_boxplot() +
+  theme(legend.position = "none") +
+  labs(x = "Time Signature", y = "Popularity", title = "Distribution of Popularity by Time Signature")
+
+key_pop = ggplot(data, aes(x = key, y = popularity, fill=key)) +
+  geom_boxplot() +
+  theme(legend.position = "none") + 
+  labs(x = "Key", y = "Popularity", title = "Distribution of Popularity by Key")
+
+mode_pop = ggplot(data, aes(x = mode, y = popularity, fill=mode)) +
+  geom_boxplot() +
+  theme(legend.position = "none") + 
+  labs(x = "Mode", y = "Popularity", title = "Distribution of Popularity by Mode")
+
+grid.arrange(ts_pop, key_pop, mode_pop, ncol = 1)
+```
+
+There are no significant changes in the distribution of the popularity between different values of time signature, key or mode. Maybe we should check the combination of key and mode since they often touch similar characteristics of a song.
+
+```{r, fig.width=16, fig.height=5}
+data$key_mode_combination <- interaction(data$mode, data$key)
+
+combined_plot <- ggplot(data, aes(x = key_mode_combination, y = popularity, fill = mode)) +
+  geom_boxplot() +
+  theme(legend.position = "none") +
+  labs(x = "Key and Mode", y = "Popularity", title = "Distribution of Popularity by Key and Mode") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  facet_wrap(~ key_mode_combination, scales = "free_x", ncol = 24)
+
+print(combined_plot)
+
+data <- subset(data, select = -c(key_mode_combination))
+```
+
+Still doesn't look significant for the popularity. In terms of the mean and even the outliers the boxplots don't look too different.
+
+There is little chance that we will need the time signature, key or mode in the final model.
+
+### Conclusions
+
+Before building the model, we can lay out a few conclusions from the sections above that will help us in building a better model and more importantly, write a hit song!
+
+-   The distribution of the popularity variable is left-skewed, indicating that most songs have relatively low popularity scores, with only a few reaching higher scores. To tackle that in our model we might want to try transforming the response, together with some other numerical variables that are skewed. It will be good to consider the log, square root, inverse and box-cox transformations.
+
+-   There is no single variable that is strongly correlated with the popularity. This means that a combination of factors is likely to influence the popularity of a song, and that we will need to try a few interactions.
+
+-   The most popular songs are usually short, upbeat, energetic, not instrumental or acoustic and do not include spoken words.
+
+-   There are some potential collinearity issues we should avoid. Energy, loudness and acousticness have some relationship between them (acousticness seems to impact the popularity the most out of them), and also danceability and valence correlate. We should be careful using loudness and tempo because they are most probably used to calculate other variables.
+
+-   The genre has massive importance when it comes to the popularity. It is a variable we 100% want to include in our model. Interactions with it may be complex since it has many values.
+
+-   Because of the way the popularity is computed, the year is very important as well. However, we want to be able to say how to write a song for it to be popular, and since the year of release is not something you control we would prefer to interact that variable with the numerical variables we choose to include, which will allow us to specify the recipe for popularity on each year.
+
+-   The time signature, key and mode don't seem to affect the popularity so much.
+
+Now we can proceed and build some models.
+
+## Model Building
 
 # Results
 
