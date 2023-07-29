@@ -216,7 +216,7 @@ As expected, the genre greatly impacts the popularity. There is a huge differenc
 
 ```{r, fig.width=25, fig.height=6}
 mean_popularity_by_year <- aggregate(data$popularity, by = list(year = data$year), mean)
-mean_popularity_by_year <- reshape2::melt(mean_data, id.vars = "year")
+mean_popularity_by_year <- reshape2::melt(mean_popularity_by_year, id.vars = "year")
 
 ggplot(mean_popularity_by_year, aes(x = year, y = value, group = variable, color = variable)) +
   geom_line() +
