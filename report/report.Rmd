@@ -3,10 +3,10 @@ title: "Predicting Song Popularity"
 subtitle: "STAT 420, Summer 2023, UIUC - Final Data Project"
 author: "Soumya Nanda, Jonas Jansen, Noam Isachar"
 output:
-  html_document:
+  pdf_document: default
   theme: readable
   toc: yes
-  pdf_document: default
+  html_document:
 urlcolor: cyan
 ---
 
@@ -137,7 +137,7 @@ pair_plot_sample = ggpairs(num_data_sample, upper = list(continuous = wrap("cor"
         text = element_text(size = 30))
 ```
 
-```{r, warning = FALSE, fig.width=25}
+```{r, warning = FALSE, fig.width=25, fig.height=15}
 print(pair_plot_sample, progress = F)
 ```
 
