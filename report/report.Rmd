@@ -253,8 +253,24 @@ data$upper_genre <- sapply(data$genre, map_genre)
 ```
 
 While handling and categorizing the genres we noticed some inconsistencies with the genre values across different songs. Some completely not related songs were wrongly categorized to the same genre, which makes sense since the genre is an algorithm-based variable. This leads us to think that we want to try a model without considering the genre, not even in the reduced form.
+Before proceeding let's see the average popularity of the new upper genres.
 
-Let's proceed and look at the year variable.
+```{r}
+mean_popularity_by_upper_genre <- aggregate(popularity ~ upper_genre, data, mean)
+
+best_mean_popularity_by_upper_genre <- mean_popularity_by_upper_genre[order(-mean_popularity_by_upper_genre$popularity), ]
+worst_mean_popularity_by_upper_genre <- mean_popularity_by_upper_genre[order(mean_popularity_by_upper_genre$popularity), ]
+```
+
+```{r}
+print(head(best_mean_popularity_by_upper_genre, 10))
+```
+
+```{r}
+print(head(worst_mean_popularity_by_upper_genre, 10))
+```
+
+Now we can look at the year variable.
 
 ```{r, fig.width=25, fig.height=6}
 mean_popularity_by_year <- aggregate(data$popularity, by = list(year = data$year), mean)
