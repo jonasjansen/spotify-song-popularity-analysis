@@ -1,0 +1,239 @@
+---
+title: "Predicting Song Popularity - Model Testing"
+subtitle: "STAT 420, Summer 2023, UIUC - Final Data Project"
+author: "Soumya Nanda, Jonas Jansen, Noam Isachar"
+output:
+  pdf_document: default
+  theme: readable
+  toc: yes
+  html_document:
+urlcolor: cyan
+---
+
+```{r setup, echo = FALSE, message = FALSE, warning = FALSE}
+options(scipen = 1, digits = 4, width = 80, fig.alin = "center")
+```
+
+------------------------------------------------------------------------
+
+Extracted this file for faster computations on model finding.
+The final models should be included into the report file.
+
+```{r, warning = FALSE}
+library(knitr)
+library(ggplot2)
+library(GGally)
+library(MASS)
+library(gridExtra)
+library(lmtest)
+library(car)
+```
+
+
+
+# Data preparation
+
+```{r}
+data <- read.csv("../data/spotify_data.csv")
+#str(data)
+```
+
+```{r}
+data$mode <- ifelse(data$mode == 1, "major", "minor")
+data$duration_m <- data$duration_ms / 1000 / 60
+
+data$year <- factor(data$year)
+data$genre <- factor(data$genre)
+data$key <- factor(data$key)
+data$mode <- factor(data$mode)
+data$time_signature <- factor(data$time_signature)
+
+data <- subset(data, select = -c(X, track_id, duration_ms))
+
+#str(data)
+```
+
+```{r}
+data <- data[data$duration_m <= 40, ]
+#summary(data$duration_m)
+```
+
+# Model finding
+
+### Prepare test and Train data.
+
+For an easier model fitting, let's create a data set without `artist_name` and `track_name`.
+
+```{r}
+fit_data = subset(data, select = -c(artist_name, track_name))
+```
+
+Split data into test and train. Using 70% train data and 30% test data.
+
+```{r}
+set.seed(42)
+
+# TODO Increase the train data size to 0.7
+ratio = 0.1
+sample_size = floor(ratio * nrow(fit_data))
+
+data_idx = sample(nrow(fit_data), sample_size)
+data_trn = fit_data[data_idx, ]
+data_tst = fit_data[-data_idx, ]
+```
+
+
+### Model Test Stats
+
+Create a function, that is performing several test on the model and return the results.
+
+```{r}
+check_model = function(model, test_data){
+  sample_idx = sample(length(resid(model)), 5000)
+  residuals_sample = resid(model)[sample_idx]
+  
+  # shapiro
+  shapiro =  shapiro.test(residuals_sample)$p.value
+  
+  # bp test
+  bptest = bptest(model)$p.value
+  
+  # leverage
+  high_leverage_count = sum(hatvalues(model) > 2 * mean(hatvalues(model)))
+  
+  # outliers
+  outliers_count = length(rstandard(model)[abs(rstandard(model)) > 2])
+  
+  # influence
+  influence_count = sum(cooks.distance(model) > 4 / length(cooks.distance(model)))
+  
+  # vif
+  vif_values <- car::vif(model)
+  predictor_names = names(model$coefficients)[-1]
+  high_vif_predictors = predictor_names[vif_values > 5]
+  high_vif_count = sum(vif_values > 5)
+  
+  # loocv_rmse
+  loocv_rmse = sqrt(mean((resid(model) / (1 - hatvalues(model))) ^ 2))
+  
+  # adjusted r squared
+  adjusted_r_squared = summary(model)$adj.r.squared
+
+  # TODO: Some test to test against the test_data
+  
+  # Creating a data frame to store the results
+  results = data.frame(
+    shapiro = shapiro,
+    bptest = bptest,
+    high_leverage_count = high_leverage_count,
+    outliers_count = outliers_count,
+    influence_count = influence_count,
+    high_vif_count = high_vif_count,
+    # TODO: Proper format list of high vif predictors.
+    #high_vif_predictors = high_vif_predictors,
+    loocv_rmse = loocv_rmse,
+    adjusted_r_squared = adjusted_r_squared
+  )
+
+  results
+
+}
+```
+
+
+### First model. Full additive.
+
+First try, fit an full additive model with popularity as response.
+
+```{r}
+model_add_full = lm(popularity ~ ., data = data_trn)
+```
+
+Let's do some first tests.
+
+```{r}
+summary(model_add_full)
+```
+What we can see is:
+- p-value is very low 
+- most variables are siginficant. Except some categorical keys.
+- RSS?
+- Adjusted R => Okay, but could be better.
+
+Model seems decent, but we can do better.
+
+Trying to find a smaller good model. Using both AIC or BIC running backward did not lead to smaller models. 
+
+
+Let's have a look into the test results:
+
+```{r}
+results = check_model(model_add_full, data_tst)
+results
+```
+
+The test results make show that the normality and constant variance and normal assumption.
+The Plots Fitted vs Residuals underline that.
+
+
+```{r}
+plot(fitted(model_add_full), resid(model_add_full), col = "grey", pch = 20,
+     xlab = "Fitted", ylab = "Residual",
+     main = "Full Additive Model - Fitted vs Residuals")
+abline(h = 0, col = "darkorange", lwd = 2)
+```
+
+```{r}
+qqnorm(resid(model_add_full), col = "darkgrey")
+qqline(resid(model_add_full), col = "dodgerblue", lwd = 2)
+```
+
+The model needs adjustments. Transformations could be helpful to fullfill the assumptions.
+
+
+
+### 2. Smaller addtive models, but more explainable
+
+In terms of finding a better explainable model, we leave out the year and the gerne.
+
+
+```{r}
+model_add_noyear = lm(popularity ~ . -year, data = data_trn)
+model_add_noyear_nogenre = lm(popularity ~ . -genre -year, data = data_trn)
+model_add_nogenre = lm(popularity ~ . -genre, data = data_trn)
+```
+
+Let's plot the model's summary
+
+```{r}
+summary(model_add_noyear)
+```
+
+```{r}
+summary(model_add_noyear_nogenre)
+```
+
+```{r}
+summary(model_add_nogenre)
+```
+
+
+Let's do some first tests.
+
+```{r}
+check_model(model_add_noyear, data_tst)
+```
+
+
+```{r}
+check_model(model_add_noyear_nogenre, data_tst)
+```
+
+
+```{r}
+check_model(model_add_nogenre, data_tst)
+```
+```
+
+
+
