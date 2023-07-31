@@ -198,9 +198,12 @@ apply_boxcox_transformation <- function(variable, lambda) {
   return(transformed_variable)
 }
 
+categorical_vars <- names(data)[sapply(data, function(x) is.factor(x) || is.character(x))]
+
 # Create a new data frame to store the transformed data
 transformed_data <- data.frame(
   sapply(names(num_vars[num_vars]), function(var) apply_boxcox_transformation(var, table_optimal_lambdas[table_optimal_lambdas$variable == var, "optimal_lambda"])),
+  data[categorical_vars],  # Add the categorical columns from the original data
   stringsAsFactors = FALSE
 )
 ```
@@ -298,6 +301,7 @@ map_genre <- function(genre) {
 }
 
 data$upper_genre <- sapply(data$genre, map_genre)
+transformed_data$upper_genre = data$upper_genre
 ```
 
 While handling and categorizing the genres we noticed some inconsistencies with the genre values across different songs. Some completely not related songs were wrongly categorized to the same genre, which makes sense since the genre is an algorithm-based variable. This leads us to think that we want to try a model without considering the genre, not even in the reduced form.
@@ -432,7 +436,7 @@ There is little chance that we will need the time signature, key or mode in the 
 
 Before building the model, we can lay out a few conclusions from the sections above that will help us in building a better model and more importantly, write a hit song!
 
--   The distribution of the popularity variable is left-skewed, indicating that most songs have relatively low popularity scores, with only a few reaching higher scores. To tackle that in our model we might want to try transforming the response, together with some other numerical variables that are skewed. It will be good to consider the log, square root, inverse and box-cox transformations.
+-   The distribution of the popularity variable is left-skewed, indicating that most songs have relatively low popularity scores, with only a few reaching higher scores. To tackle that in our model we might want to try transforming the response, together with some other numerical variables that are skewed. After using the Box-Cox method we retrieved the optimal lambdas for each variables and implemented it in a dedicated dataframe. It will be beneficial to try fitting a model using this dataframe and compare it to a model with the regular data.
 
 -   There is no single variable that is strongly correlated with the popularity. This means that a combination of factors is likely to influence the popularity of a song, and that we will need to try a few interactions.
 
