@@ -31,32 +31,29 @@ library(car)
 
 
 
-# Data preparation
+# Load prepared train dataset (currently 10% of all entries). Convert necessary variables into factors.
 
-```{r}
-data <- read.csv("../data/spotify_data.csv")
-#str(data)
+```{r, echo = FALSE, message = FALSE, warning = FALSE}
+data_raw <- read.csv("../data/spotify_data_trn.csv")
+data_trans_raw  <- read.csv("../data/spotify_data_transformed_trn.csv")
 ```
 
-```{r}
-data$mode <- ifelse(data$mode == 1, "major", "minor")
-data$duration_m <- data$duration_ms / 1000 / 60
+```{r, echo = FALSE, message = FALSE, warning = FALSE}
+data_raw$upper_genre <- factor(data_raw$upper_genre)
+data_raw$key <- factor(data_raw$key)
+data_raw$mode <- factor(data_raw$mode)
+data_raw$time_signature <- factor(data_raw$time_signature)
+str(data_raw)
 
-data$year <- factor(data$year)
-data$genre <- factor(data$genre)
-data$key <- factor(data$key)
-data$mode <- factor(data$mode)
-data$time_signature <- factor(data$time_signature)
-
-data <- subset(data, select = -c(X, track_id, duration_ms))
-
-#str(data)
+data_trans_raw$year <- data_raw$year
+data_trans_raw$genre <- factor(data_raw$genre)
+data_trans_raw$upper_genre <- factor(data_raw$upper_genre)
+data_trans_raw$key <- factor(data_raw$key)
+data_trans_raw$mode <- factor(data_raw$mode)
+data_trans_raw$time_signature <- factor(data_raw$time_signature)
+str(data_trans_raw)
 ```
 
-```{r}
-data <- data[data$duration_m <= 40, ]
-#summary(data$duration_m)
-```
 
 # Model finding
 
@@ -64,23 +61,8 @@ data <- data[data$duration_m <= 40, ]
 
 For an easier model fitting, let's create a data set without `artist_name` and `track_name`.
 
-```{r}
-fit_data = subset(data, select = -c(artist_name, track_name))
-```
+TODO: Split into test and train
 
-Split data into test and train. Using 70% train data and 30% test data.
-
-```{r}
-set.seed(42)
-
-# TODO Increase the train data size to 0.7
-ratio = 0.1
-sample_size = floor(ratio * nrow(fit_data))
-
-data_idx = sample(nrow(fit_data), sample_size)
-data_trn = fit_data[data_idx, ]
-data_tst = fit_data[-data_idx, ]
-```
 
 
 ### Model Test Stats
@@ -107,11 +89,6 @@ check_model = function(model, test_data){
   # influence
   influence_count = sum(cooks.distance(model) > 4 / length(cooks.distance(model)))
   
-  # vif
-  vif_values <- car::vif(model)
-  predictor_names = names(model$coefficients)[-1]
-  high_vif_predictors = predictor_names[vif_values > 5]
-  high_vif_count = sum(vif_values > 5)
   
   # loocv_rmse
   loocv_rmse = sqrt(mean((resid(model) / (1 - hatvalues(model))) ^ 2))
@@ -128,9 +105,6 @@ check_model = function(model, test_data){
     high_leverage_count = high_leverage_count,
     outliers_count = outliers_count,
     influence_count = influence_count,
-    high_vif_count = high_vif_count,
-    # TODO: Proper format list of high vif predictors.
-    #high_vif_predictors = high_vif_predictors,
     loocv_rmse = loocv_rmse,
     adjusted_r_squared = adjusted_r_squared
   )
@@ -141,12 +115,17 @@ check_model = function(model, test_data){
 ```
 
 
-### First model. Full additive.
+### 1. Full additive.
 
 First try, fit an full additive model with popularity as response.
 
+```{r, warning=FALSE}
+data = subset(data_raw, select = -c(upper_genre))
+```
+
+
 ```{r}
-model_add_full = lm(popularity ~ ., data = data_trn)
+model_add_full = lm(popularity ~ ., data = data)
 ```
 
 Let's do some first tests.
@@ -196,11 +175,17 @@ The model needs adjustments. Transformations could be helpful to fullfill the as
 
 In terms of finding a better explainable model, we leave out the year and the gerne.
 
+```{r}
+### TEMP
+data = subset(data_raw, select = -c(upper_genre))
+### TEMP
+```
+
 
 ```{r}
-model_add_noyear = lm(popularity ~ . -year, data = data_trn)
-model_add_noyear_nogenre = lm(popularity ~ . -genre -year, data = data_trn)
-model_add_nogenre = lm(popularity ~ . -genre, data = data_trn)
+model_add_noyear = lm(popularity ~ . -year, data = data)
+model_add_noyear_nogenre = lm(popularity ~ . -genre -year, data = data)
+model_add_nogenre = lm(popularity ~ . -genre, data = data)
 ```
 
 Let's plot the model's summary
@@ -233,7 +218,84 @@ check_model(model_add_noyear_nogenre, data_tst)
 ```{r}
 check_model(model_add_nogenre, data_tst)
 ```
+
+
+### 3. Using upper genre
+
+Fit the same models but using upper_gerne instead.
+
+
+```{r}
+data = subset(data_raw, select = -c(genre))
 ```
 
 
+```{r}
+model_upper_genre_add_full = lm(popularity ~ ., data = data)
+model_upper_genre_add_noyear = lm(popularity ~ . -year, data = data)
+model_upper_genre_add_noyear_nogenre = lm(popularity ~ . -upper_genre -year, data = data)
+model_upper_genre_add_nogenre = lm(popularity ~ . -upper_genre, data = data)
+```
+
+Test these models
+
+```{r}
+check_model(model_upper_genre_add_full, data_tst)
+```
+
+```{r}
+check_model(model_upper_genre_add_noyear, data_tst)
+```
+
+```{r}
+check_model(model_upper_genre_add_noyear_nogenre, data_tst)
+```
+
+```{r}
+check_model(model_upper_genre_add_nogenre, data_tst)
+```
+
+### 3. Transformed data
+
+```{r}
+### TEMP
+data = data_trans_raw
+### TEMP
+```
+
+```{r}
+model_trans_add_full                        = lm(popularity ~ ., data = data)
+
+model_trans_genre_add                 = lm(popularity ~ . -upper_genre, data = data)
+model_trans_genre_add_noyear          = lm(popularity ~ . -upper_genre -year, data = data)
+model_trans_genre_add_nogenre         = lm(popularity ~ . -upper_genre -genre, data = data)
+model_trans_genre_add_noyear_nogenre  = lm(popularity ~ . -upper_genre -year -genre, data = data)
+
+model_trans_upper_genre_add                 = lm(popularity ~ . -genre, data = data)
+model_trans_upper_genre_add_noyear          = lm(popularity ~ . -genre -year, data = data)
+model_trans_upper_genre_add_nogenre         = lm(popularity ~ . -genre -upper_genre, data = data)
+model_trans_upper_genre_add_noyear_nogenre  = lm(popularity ~ . -genre -year -upper_genre, data = data)
+```
+
+```{r}
+print_checks = function(model) {
+  print(summary(model))
+  print(check_model(model))
+  
+  plot(fitted(model), resid(model), col = "grey", pch = 20,
+       xlab = "Fitted", ylab = "Residual",
+       main = "Full Additive Model - Fitted vs Residuals")
+  abline(h = 0, col = "darkorange", lwd = 2)
+  
+  qqnorm(resid(model), col = "darkgrey")
+  qqline(resid(model), col = "dodgerblue", lwd = 2)
+}
+```
+
+
+```{r}
+print_checks(model_trans_add_full)
+print_checks(model_trans_genre_add)
+print_checks(model_trans_upper_genre_add)
+```
 
