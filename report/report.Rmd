@@ -157,7 +157,55 @@ Let's highlight some interesting points:
 
 -   Some other observations jump out which are not related to the model we intend to build. Regarding the instrumentalness, it has some positive correlation with the duration and negative correlation with the loudness and valence, which makes sense. Many of the instrumental songs we know are indeed longer than usual and also have some quiet gloomy parts. The tempo has a positive correlation with the loudness and negative correlation with the acousticness. In reality faster and upbeat songs are usually louder than slower ones, and acoustic songs we know do tend to be slower in BPM. One more relationship that is logical is the positive one between liveness and speechiness. Concerts and live version have some spoken words in them when the artists communicate with the crowd.
 
-One interesting analysis to try is to bin the popularity into 10 chunks and see the difference in each variable across the different bins of popularity.
+After getting the hint that transformations are required, let's run the Box-Cox method on every non-negative numerical variable to see which is the recommended transformation.
+
+```{r}
+eps = 1e-8
+# Function to calculate the optimal lambda for a variable using Box-Cox
+get_optimal_lambda <- function(variable) {
+  lm_formula <- as.formula(paste(variable, "+ eps ~ 1"))
+  result <- boxcox(lm_formula, data = data, plot=FALSE)
+  return(result$x[which.max(result$y)])  # Return the optimal lambda
+}
+
+# Create an empty data frame to store the results
+table_optimal_lambdas <- data.frame(variable = character(), optimal_lambda = numeric(), stringsAsFactors = FALSE)
+
+# Use a loop to get the optimal lambda for each variable
+for (var in names(num_vars[num_vars])) {
+  if (min(data[[var]]) < 0) {
+    optimal_lambda = 1
+  }
+  else {
+    optimal_lambda = get_optimal_lambda(var)
+  }
+  table_optimal_lambdas <- rbind(table_optimal_lambdas, data.frame(variable = var, optimal_lambda = optimal_lambda))
+}
+
+# Print the table
+print(table_optimal_lambdas)
+```
+
+Save the transformed variables with the recommended lambdas into a new dataframe.
+
+```{r}
+apply_boxcox_transformation <- function(variable, lambda) {
+  transformed_variable <- if (abs(lambda) < 0.01) {
+    log(data[[variable]] + eps)
+  } else {
+    (data[[variable]]^lambda - 1) / lambda
+  }
+  return(transformed_variable)
+}
+
+# Create a new data frame to store the transformed data
+transformed_data <- data.frame(
+  sapply(names(num_vars[num_vars]), function(var) apply_boxcox_transformation(var, table_optimal_lambdas[table_optimal_lambdas$variable == var, "optimal_lambda"])),
+  stringsAsFactors = FALSE
+)
+```
+
+One more interesting analysis to try is to bin the popularity into 10 chunks and see the difference in each variable across the different bins of popularity.
 
 ```{r, fig.width=20, fig.height=15}
 data$popularity_bins <- cut(data$popularity, breaks = 10)
@@ -409,3 +457,7 @@ Now we can proceed and build some models.
 # Appendix
 
 The report was composed and written by Soumya Nanda, Jonas Jansen and Noam Isachar.
+
+
+
+
