@@ -34,6 +34,7 @@ library(ggplot2)
 library(GGally)
 library(MASS)
 library(gridExtra)
+library(preprocessCore)
 ```
 
 Let's have the first glance of the data.
@@ -120,6 +121,26 @@ head(data[data$tempo == 0, 1:2], 10)
 
 After listening to some of those we can verify that the 0 for tempo are legit values and these songs don't follow a beat.
 
+Another suspicious 0 is for the popularity. Knowing Spotify, there is a lot of junk there that can't really be tagged as songs and it is possible that it ended up in this dataset and it is contaminating the data. Another possibility is that it is a bug in the dataset, since getting zero popularity and not even a fraction above it means that no streams were made. Let's see some of the tracks with zero popularity and manually verify what happened.
+
+```{r}
+head(data[data$popularity == 0, 1:2], 10)
+```
+
+After carefully checking examples, we noticed some of them have Millions of streams, like Greetings by Joni Haastrup. This makes us think that there is a problem and some songs are added with zero popularity by mistake. Let's see how many songs have zero popularity, and how many have any other number.
+
+```{r}
+print(paste("Number of tracks with zero popularity:", nrow(data[data$popularity == 0, ])))
+print(paste("Number of tracks with non-zero popularity:", nrow(data[data$popularity > 0, ])))
+```
+
+For some reason tracks with zero popularity are over 10% of the dataset, which other than being suspicious is also VERY unbalanced. We decide to remove these observations as there seems to be so many of them, also in cases that it doesn't make sense.
+
+```{r}
+data <- data[data$popularity > 0, ]
+summary(data)
+```
+
 ### Numerical Variables Analysis
 
 Let's start exploring the numerical variables and the relationships between them.
@@ -145,7 +166,7 @@ We sampled 10,000 observations from the dataset for this pair-plot since doing i
 
 Let's highlight some interesting points:
 
--   The first thing to observe is how difficult it is to write a popular song. The distribution is left-skewed and the mean is only 18.4 out of 100.
+-   The first thing to observe is how difficult it is to write a popular song. Even after we removed songs with 0 popularity the distribution is still very left-skewed and the mean is only 21.3 out of 100.
 
 -   Looking at the main diagonal where the distribution of each variable is plotted, we can see that many of them including the popularity are skewed which hints that transformations will be needed if we want better prediction results. We will consider log, square-root, inverse and box-cox transformations for this task.
 
@@ -186,7 +207,7 @@ for (var in names(num_vars[num_vars])) {
 print(table_optimal_lambdas)
 ```
 
-Save the transformed variables with the recommended lambdas into a new dataframe.
+Save the transformed variables with the recommended lambdas into a new dataframe. Then, we plot the pair-plot again and see of the distributions resemble a normal distribution.
 
 ```{r}
 apply_boxcox_transformation <- function(variable, lambda) {
@@ -201,12 +222,57 @@ apply_boxcox_transformation <- function(variable, lambda) {
 categorical_vars <- names(data)[sapply(data, function(x) is.factor(x) || is.character(x))]
 
 # Create a new data frame to store the transformed data
-transformed_data <- data.frame(
+boxcox_data <- data.frame(
   sapply(names(num_vars[num_vars]), function(var) apply_boxcox_transformation(var, table_optimal_lambdas[table_optimal_lambdas$variable == var, "optimal_lambda"])),
   data[categorical_vars],  # Add the categorical columns from the original data
   stringsAsFactors = FALSE
 )
+boxcox_data <- boxcox_data[names(data)]
 ```
+```{r}
+boxcox_num_data <- boxcox_data[, num_vars]
+boxcox_num_data_sample <- boxcox_num_data[sample(nrow(boxcox_num_data), 10000), ]
+
+boxcox_pair_plot_sample = ggpairs(boxcox_num_data_sample, upper = list(continuous = wrap("cor", size = 6))) +
+  theme_bw() + 
+  theme(axis.line=element_blank(),
+        axis.text=element_blank(),
+        axis.ticks=element_blank(),
+        text = element_text(size = 30))
+```
+```{r, warning = FALSE, fig.width=25, fig.height=15}
+print(boxcox_pair_plot_sample, progress = F)
+```
+
+The distributions still look off. When Box-Cox transformations are unsatisfactory, quantile normalization emerges as a robust alternative. Unlike Box-Cox, quantile normalization is distribution-free and aligns empirical distributions across variables, ensuring fair comparisons and improved statistical analyses, even with non-normally distributed data. It provides a versatile, data-driven approach to normalize variables, making it an effective choice when dealing with datasets lacking a specific theoretical distribution.
+
+Quantile normalization equalizes the empirical distributions of numerical data across variables by mapping each value to its corresponding quantile in a reference distribution (e.g., uniform or Gaussian). This process ensures that all variables share the same distributional properties, making the data suitable for statistical analyses and comparisons without relying on any specific theoretical distribution.
+
+Let's perform quantile normalization on the numerical variables and the show the pair-plot again.
+
+```{r}
+quantile_data = as.data.frame(normalize.quantiles(as.matrix(num_data)))
+colnames(quantile_data) = colnames(num_data)
+quantile_data = cbind(quantile_data, data[categorical_vars])
+quantile_data <- quantile_data[names(data)]
+```
+
+```{r}
+quantile_num_data <- quantile_data[, num_vars]
+quantile_num_data_sample <- quantile_num_data[sample(nrow(quantile_num_data), 10000), ]
+
+quantile_pair_plot_sample = ggpairs(quantile_num_data_sample, upper = list(continuous = wrap("cor", size = 6))) +
+  theme_bw() + 
+  theme(axis.line=element_blank(),
+        axis.text=element_blank(),
+        axis.ticks=element_blank(),
+        text = element_text(size = 30))
+```
+```{r, warning = FALSE, fig.width=25, fig.height=15}
+print(quantile_pair_plot_sample, progress = F)
+```
+
+Beautiful. The distributions of the variables are not skewed and the scatterplots resemble what we are used to see when working with normally distributed data. When building the models we will most likely use the quantile normalized data.
 
 One more interesting analysis to try is to bin the popularity into 10 chunks and see the difference in each variable across the different bins of popularity.
 
@@ -302,6 +368,7 @@ map_genre <- function(genre) {
 
 data$upper_genre <- sapply(data$genre, map_genre)
 transformed_data$upper_genre = data$upper_genre
+quantile_data$upper_genre = data$upper_genre
 ```
 
 While handling and categorizing the genres we noticed some inconsistencies with the genre values across different songs. Some completely not related songs were wrongly categorized to the same genre, which makes sense since the genre is an algorithm-based variable. This leads us to think that we want to try a model without considering the genre, not even in the reduced form.
@@ -436,7 +503,7 @@ There is little chance that we will need the time signature, key or mode in the 
 
 Before building the model, we can lay out a few conclusions from the sections above that will help us in building a better model and more importantly, write a hit song!
 
--   The distribution of the popularity variable is left-skewed, indicating that most songs have relatively low popularity scores, with only a few reaching higher scores. To tackle that in our model we might want to try transforming the response, together with some other numerical variables that are skewed. After using the Box-Cox method we retrieved the optimal lambdas for each variables and implemented it in a dedicated dataframe. It will be beneficial to try fitting a model using this dataframe and compare it to a model with the regular data.
+-   The distribution of the popularity variable is left-skewed, indicating that most songs have relatively low popularity scores, with only a few reaching higher scores. To tackle that in our model we might want to try transforming the response, together with some other numerical variables that are skewed. After using the Box-Cox method we retrieved the optimal lambdas for each variables and implemented it in a dedicated dataframe. The result was still unsatisfactory so we had to use a more robust way of normalizing data and forcing it into a normal distribution, such as quantile normalization. The normalized data was saved into a dataframe which we are likely to use when fitting models. 
 
 -   There is no single variable that is strongly correlated with the popularity. This means that a combination of factors is likely to influence the popularity of a song, and that we will need to try a few interactions.
 
