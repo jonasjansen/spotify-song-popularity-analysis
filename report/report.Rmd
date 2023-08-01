@@ -35,6 +35,7 @@ library(GGally)
 library(MASS)
 library(gridExtra)
 library(preprocessCore)
+library(lmtest)
 ```
 
 Let's have the first glance of the data.
@@ -531,18 +532,22 @@ Split the data into 70% train data and 30% test data.
 ratio = 0.7
 
 # normal data set
-sample_size = floor(ratio * nrow(data))
-data_idx = sample(nrow(data), sample_size)
-data_trn = data[data_idx, ]
-data_tst = data[-data_idx, ]
+data_fit <- subset(data, select = -c(artist_name, track_name))
+
+sample_size = floor(ratio * nrow(data_fit))
+data_idx = sample(nrow(data_fit), sample_size)
+data_trn = data_fit[data_idx, ]
+data_tst = data_fit[-data_idx, ]
+
 
 # quantile normalized data set
-sample_size = floor(ratio * nrow(quantile_data))
-quantile_data_idx = sample(nrow(quantile_data), sample_size)
-quantile_data_trn = quantile_data[quantile_data_idx,]
-quantile_data_tst = quantile_data[-quantile_data_idx, ]
-```
+quantile_data_fit <- subset(quantile_data, select = -c(artist_name, track_name))
 
+sample_size = floor(ratio * nrow(quantile_data_fit))
+quantile_data_idx = sample(nrow(quantile_data_fit), sample_size)
+quantile_data_trn = quantile_data_fit[quantile_data_idx,]
+quantile_data_tst = quantile_data_fit[-quantile_data_idx, ]
+```
 
 
 Define a function which is performing several tests on a given model and test data.
@@ -607,6 +612,7 @@ check_model = function(model, test_data){
 ```
 
 
+
 ### Full Additive Model
 
 The first model we build is a full additive one including all predictors. One exception is on the upper genre, since this sould be a replacement for gerne in a better explainable and useful model.
@@ -616,6 +622,8 @@ The use data is the untransformed one.
 model_add_full = lm(popularity ~ . -upper_genre, data = data_trn)
 ```
 
+Let's see how good the model performs
+
 ```{r}
 summary(model_add_full)
 ```
@@ -624,8 +632,16 @@ summary(model_add_full)
 check_model(model_add_full, data_tst)
 ```
 
+TODO: Assumption Plots.
+
+TODO: Describe the model
+
 
 ### Interaction ???
+
+
+# TODO: Fit a model with all two-way interactions.
+
 
 
 ### Data Transformation
@@ -633,17 +649,39 @@ check_model(model_add_full, data_tst)
 The next step is to focus on the very suspect normality and constant variance assumptions of the full additive model. 
 
 ```{r}
-check_model()
+model_add_quant_full = lm(popularity ~ . -upper_genre, data = quantile_data_trn)
+```
+
+```{r}
+summary(model_add_quant_full)
+```
+
+```{r}
+check_model(model_add_quant_full, quantile_data_tst)
 ```
 
 
 ### Collinearity
 
+# TODO: Colinearity
+# TODO: outliers
 
 ### More Explainability
 
 
+```{r}
+model_explain = lm(popularity ~ . -genre -year, data = quantile_data_trn)
+```
 
+```{r}
+summary(model_explain)
+```
+
+```{r}
+check_model(model_explain, quantile_data_tst)
+```
+
+TODO: Tell about model.
 
 # Results
 
