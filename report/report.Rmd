@@ -367,7 +367,6 @@ map_genre <- function(genre) {
 }
 
 data$upper_genre <- sapply(data$genre, map_genre)
-transformed_data$upper_genre = data$upper_genre
 quantile_data$upper_genre = data$upper_genre
 ```
 
@@ -520,6 +519,111 @@ Before building the model, we can lay out a few conclusions from the sections ab
 Now we can proceed and build some models.
 
 ## Model Building
+
+### Define Test Criteria
+
+First we split the data sets into 
+
+Split the data into 70% train data and 30% test data. 
+
+
+```{r}
+ratio = 0.7
+
+# normal data set
+sample_size = floor(ratio * nrow(data))
+data_idx = sample(nrow(data), sample_size)
+data_trn = data[data_idx, ]
+data_tst = data[-data_idx, ]
+
+# quantile normalized data set
+sample_size = floor(ratio * nrow(quantile_data))
+quantile_data_idx = sample(nrow(quantile_data), sample_size)
+quantile_data_trn = quantile_data[quantile_data_idx,]
+quantile_data_tst = quantile_data[-quantile_data_idx, ]
+```
+
+
+
+Define a function which is performing several tests on a given model and test data.
+Note that the shapiro test is limited to 5000 residuals. Since all data sets used here are way larger and therefore the number of residuals too,
+a random sample size of 5000 residuals is selected.
+This makes the result of that test somewhat unreliable, but it still give us an idea how good or bad the model might be.
+
+```{r}
+check_model = function(model, test_data){
+  # 
+  sample_idx = sample(length(resid(model)), 5000)
+  residuals_sample = resid(model)[sample_idx]
+  
+  # shapiro
+  shapiro =  shapiro.test(residuals_sample)$p.value
+  
+  # bp test
+  bptest = bptest(model)$p.value
+  
+  # leverage
+  high_leverage_count = sum(hatvalues(model) > 2 * mean(hatvalues(model)))
+  
+  # outliers
+  outliers_count = length(rstandard(model)[abs(rstandard(model)) > 2])
+  
+  # influence
+  influence_count = sum(cooks.distance(model) > 4 / length(cooks.distance(model)))
+  
+  # vif
+  vif_values <- car::vif(model)
+  predictor_names = names(model$coefficients)[-1]
+  high_vif_count = sum(vif_values > 5)
+  high_vif_predictors = predictor_names[vif_values > 5]
+
+  
+  # loocv_rmse
+  loocv_rmse = sqrt(mean((resid(model) / (1 - hatvalues(model))) ^ 2))
+  
+  # adjusted r squared
+  adjusted_r_squared = summary(model)$adj.r.squared
+
+  # Get rsme using the test data
+  predictions <- predict(model, newdata = test_data)
+  rsme <- sqrt(mean((test_data$popularity - predictions)^2))
+
+  # Creating a data frame to store the results
+  results = data.frame(
+    shapiro = shapiro,
+    bptest = bptest,
+    high_leverage_count = high_leverage_count,
+    outliers_count = outliers_count,
+    influence_count = influence_count,
+    high_vif_count = high_vif_count,
+    high_vif_predictors = paste(high_vif_predictors, collapse = ", "),
+    rsme = rsme,
+    loocv_rmse = loocv_rmse,
+    adjusted_r_squared = adjusted_r_squared
+  )
+
+  results
+}
+```
+
+
+### Full Additive Model
+
+
+
+### Interaction ???
+
+
+### Data Transformation
+
+
+### Collinearity
+
+
+### More Explainability
+
+
+
 
 # Results
 
