@@ -686,6 +686,43 @@ TODO: Describe results
 # TODO: Colinearity
 # TODO: outliers
 
+```{r}
+model_add_quant_inf = lm(popularity ~ . -upper_genre, data = quantile_data_trn)
+
+# Calculate Cook's distance
+cooksd <- cooks.distance(model_add_quant_inf)
+n = nrow(model.frame(model_add_quant_inf))
+# Identify influential points with Cook's distance cutoff (e.g., 4/n)
+cutoff <- 4/n
+influential_points <- which(cooksd > cutoff)
+
+# Remove influential points from the dataset
+quantile_data_trn_cleaned <- quantile_data_trn[-influential_points, ]
+quantile_data_tst_cleaned <- quantile_data_tst[-influential_points, ]
+
+```
+
+```{r}
+str(quantile_data_trn_cleaned)
+```
+
+
+```{r}
+model_add_quant_no_inf = lm(popularity ~ . -genre -year -energy -key, data = quantile_data_trn_cleaned)
+```
+
+```{r}
+summary(model_add_quant_no_inf)
+```
+
+```{r}
+check_model(model_add_quant_no_inf, quantile_data_tst_cleaned)
+```
+
+```{r}
+plot_model(model_add_quant_no_inf)
+```
+
 ### More Explainability
 
 
