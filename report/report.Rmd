@@ -609,12 +609,32 @@ check_model = function(model, test_data){
 
 ### Full Additive Model
 
+The first model we build is a full additive one including all predictors. One exception is on the upper genre, since this sould be a replacement for gerne in a better explainable and useful model.
+The use data is the untransformed one. 
+
+```{r}
+model_add_full = lm(popularity ~ . -upper_genre, data = data_trn)
+```
+
+```{r}
+summary(model_add_full)
+```
+
+```{r}
+check_model(model_add_full, data_tst)
+```
 
 
 ### Interaction ???
 
 
 ### Data Transformation
+
+The next step is to focus on the very suspect normality and constant variance assumptions of the full additive model. 
+
+```{r}
+check_model()
+```
 
 
 ### Collinearity
