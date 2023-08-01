@@ -611,7 +611,22 @@ check_model = function(model, test_data){
 }
 ```
 
+Define a function to plot both the Fitted vs Residuals plot and the Q-Q Plot
 
+```{r}
+# TODO: Pass main and labels to function.
+plot_model <- function(model) {
+  # Fitted vs Residuals Plot
+  plot(fitted(model), resid(model), col = "grey", pch = 20,
+     xlab = "Fitted", ylab = "Residuals", main = "Data from Model 3")
+  abline(h = 0, col = "darkorange", lwd = 2)
+  
+  # Q-Q Plot
+  qqnorm(resid(model), main = "Normal Q-Q Plot", col = "darkgrey")
+  qqline(resid(model), col = "dodgerblue", lwd = 2)
+}
+
+```
 
 ### Full Additive Model
 
@@ -632,7 +647,11 @@ summary(model_add_full)
 check_model(model_add_full, data_tst)
 ```
 
-TODO: Assumption Plots.
+
+```{r}
+plot_model(model_add_full)
+```
+
 
 TODO: Describe the model
 
@@ -660,6 +679,10 @@ summary(model_add_quant_full)
 check_model(model_add_quant_full, quantile_data_tst)
 ```
 
+```{r}
+plot_model(model_add_quant_full)
+```
+
 
 ### Collinearity
 
@@ -681,7 +704,12 @@ summary(model_explain)
 check_model(model_explain, quantile_data_tst)
 ```
 
+```{r}
+plot_model(model_explain)
+```
+
 TODO: Tell about model.
+
 
 # Results
 
