@@ -529,6 +529,7 @@ Split the data into 70% train data and 30% test data.
 
 
 ```{r}
+set.seed(42)
 ratio = 0.7
 
 # normal data set
@@ -656,12 +657,6 @@ plot_model(model_add_full)
 TODO: Describe the model
 
 
-### Interaction ???
-
-
-# TODO: Fit a model with all two-way interactions.
-
-
 
 ### Data Transformation
 
@@ -683,6 +678,8 @@ check_model(model_add_quant_full, quantile_data_tst)
 plot_model(model_add_quant_full)
 ```
 
+TODO: Describe results
+
 
 ### Collinearity
 
@@ -693,7 +690,8 @@ plot_model(model_add_quant_full)
 
 
 ```{r}
-model_explain = lm(popularity ~ . -genre -year, data = quantile_data_trn)
+str(quantile_data_trn)
+model_explain = lm(popularity ~ . -genre, data = quantile_data_trn)
 ```
 
 ```{r}
@@ -708,7 +706,15 @@ check_model(model_explain, quantile_data_tst)
 plot_model(model_explain)
 ```
 
+TODO: This plot does not look as good as in the outsourced version. Find out why.
+
 TODO: Tell about model.
+
+
+### Interaction ???
+
+
+# TODO: Fit the explainable model with all two-way interactions. Run stepwise search to kick out unnecessary ones.
 
 
 # Results
