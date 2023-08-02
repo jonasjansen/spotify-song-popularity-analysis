@@ -36,6 +36,7 @@ library(MASS)
 library(gridExtra)
 library(preprocessCore)
 library(lmtest)
+library(car)
 ```
 
 Let's have the first glance of the data.
@@ -557,8 +558,17 @@ a random sample size of 5000 residuals is selected.
 This makes the result of that test somewhat unreliable, but it still give us an idea how good or bad the model might be.
 
 ```{r}
+# temp
+names(summary(model_add_full))
+```
+
+
+```{r}
 check_model = function(model, test_data){
-  # 
+  model_info = summary(model)
+  
+  set.seed(42)
+  # sample for shapiro
   sample_idx = sample(length(resid(model)), 5000)
   residuals_sample = resid(model)[sample_idx]
   
@@ -568,44 +578,21 @@ check_model = function(model, test_data){
   # bp test
   bptest = bptest(model)$p.value
   
-  # leverage
-  high_leverage_count = sum(hatvalues(model) > 2 * mean(hatvalues(model)))
-  
-  # outliers
-  outliers_count = length(rstandard(model)[abs(rstandard(model)) > 2])
-  
-  # influence
-  influence_count = sum(cooks.distance(model) > 4 / length(cooks.distance(model)))
-  
-  # vif
-  vif_values <- car::vif(model)
-  predictor_names = names(model$coefficients)[-1]
-  high_vif_count = sum(vif_values > 5)
-  high_vif_predictors = predictor_names[vif_values > 5]
-
-  
   # loocv_rmse
   loocv_rmse = sqrt(mean((resid(model) / (1 - hatvalues(model))) ^ 2))
-  
-  # adjusted r squared
-  adjusted_r_squared = summary(model)$adj.r.squared
 
-  # Get rsme using the test data
+  # rsme using the test data
   predictions <- predict(model, newdata = test_data)
-  rsme <- sqrt(mean((test_data$popularity - predictions)^2))
+  rsme_test <- sqrt(mean((test_data$popularity - predictions)^2))
 
   # Creating a data frame to store the results
   results = data.frame(
-    shapiro = shapiro,
-    bptest = bptest,
-    high_leverage_count = high_leverage_count,
-    outliers_count = outliers_count,
-    influence_count = influence_count,
-    high_vif_count = high_vif_count,
-    high_vif_predictors = paste(high_vif_predictors, collapse = ", "),
-    rsme = rsme,
+    r_squared = model_info$r.squared,
+    adjusted_r_squared = model_info$adj.r.squared,
+    rsme_test = rsme_test,
     loocv_rmse = loocv_rmse,
-    adjusted_r_squared = adjusted_r_squared
+    shapiro = shapiro,
+    bptest = bptest
   )
 
   results
@@ -661,6 +648,9 @@ TODO: Describe the model
 ### Data Transformation
 
 The next step is to focus on the very suspect normality and constant variance assumptions of the full additive model. 
+- Boxcox vs Qunatiles => Quantiles were better, only that is shown here
+- Tried several transformations of perdictors (and response) based on the findings in the data part. Only the best version is shown here. 
+
 
 ```{r}
 model_add_quant_full = lm(popularity ~ . -upper_genre, data = quantile_data_trn)
@@ -677,53 +667,71 @@ check_model(model_add_quant_full, quantile_data_tst)
 ```{r}
 plot_model(model_add_quant_full)
 ```
+```{r}
+formula = "sqrt(popularity)~danceability+energy+exp(loudness)+speechiness+acousticness+instrumentalness+liveness+valence+tempo+exp(duration_m)+key+mode+time_signature+genre"
+model_add_quant_trans = lm(formula, data = quantile_data_trn)
+summary(model_add_quant_trans)
+check_model(model_add_quant_trans, quantile_data_tst)
+plot_model(model_add_quant_trans)
+```
+
+
 
 TODO: Describe results
+We could get way closer.
+quant and sqrt(pop) have the biggest effekt
+either valence or loudness exp. Both make it worse.
+exp(duration_m). 1/duration also possible but slighly worse.
+Removing genre, is making it more supsect, adding upper_genre has no effect. So let's keep it at genre for now.
+Adding year is making it more suspect
+
+No visible improvements could be achieved towards the constant variance assumption.
+
 
 
 ### Collinearity
 
-# TODO: Colinearity
-# TODO: outliers
+TODO: Replace car library with faraway.
+
+Using the model from before. Excluding upper_genre since it is a non specific subset for 
 
 ```{r}
-model_add_quant_inf = lm(popularity ~ . -upper_genre, data = quantile_data_trn)
-
-# Calculate Cook's distance
-cooksd <- cooks.distance(model_add_quant_inf)
-n = nrow(model.frame(model_add_quant_inf))
-# Identify influential points with Cook's distance cutoff (e.g., 4/n)
-cutoff <- 4/n
-influential_points <- which(cooksd > cutoff)
-
-# Remove influential points from the dataset
-quantile_data_trn_cleaned <- quantile_data_trn[-influential_points, ]
-quantile_data_tst_cleaned <- quantile_data_tst[-influential_points, ]
-
-```
-
-```{r}
-str(quantile_data_trn_cleaned)
+formula = "sqrt(popularity)~danceability+energy+exp(loudness)+speechiness+acousticness+instrumentalness+liveness+valence+tempo+exp(duration_m)+key+mode+time_signature+genre"
+model_add_quant_vif = lm(formula, data = quantile_data_trn)
 ```
 
 
 ```{r}
-model_add_quant_no_inf = lm(popularity ~ . -genre -year -energy -key, data = quantile_data_trn_cleaned)
+(vif_values <- faraway::vif(model_add_quant_vif))
+(problematic_variables <- names(vif_values[vif_values > 5]))
 ```
 
-```{r}
-summary(model_add_quant_no_inf)
-```
+We see that the factor variable time_signature has vif values above the threshold of 5. This is problematic, it indicates that those variables are contributing to multicollinearity in our regression model. Therefore we remove them and do the test over again.
 
 ```{r}
-check_model(model_add_quant_no_inf, quantile_data_tst_cleaned)
+formula = "sqrt(popularity)~danceability+energy+exp(loudness)+speechiness+acousticness+instrumentalness+liveness+valence+tempo+exp(duration_m)+key+mode+genre"
+model_add_quant_no_vif = lm(formula, data = quantile_data_trn)
 ```
 
+
 ```{r}
-plot_model(model_add_quant_no_inf)
+(vif_values <- faraway::vif(model_add_quant_no_vif))
+(problematic_variables <- names(vif_values[vif_values > 5]))
 ```
+
+TODO: Write text. Now all predictors are below the threshold.
+
+
+```{r}
+check_model(model_add_quant_no_vif, quantile_data_tst)
+plot_model(model_add_quant_no_vif)
+```
+
+
 
 ### More Explainability
+
+Let's move towards a more explainable model
 
 
 ```{r}
