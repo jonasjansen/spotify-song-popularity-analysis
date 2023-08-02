@@ -1,0 +1,838 @@
+---
+title: "Predicting Song Popularity"
+subtitle: "STAT 420, Summer 2023, UIUC - Final Data Project"
+author: "Soumya Nanda, Jonas Jansen, Noam Isachar"
+output:
+  pdf_document: default
+  theme: readable
+  toc: yes
+  html_document:
+urlcolor: cyan
+---
+
+```{r setup, echo = FALSE, message = FALSE, warning = FALSE}
+options(scipen = 1, digits = 4, width = 80, fig.alin = "center")
+```
+
+------------------------------------------------------------------------
+
+# Introduction
+
+In this project, we analyse the dataset [Spotify_1Million_Tracks](https://www.kaggle.com/datasets/amitanshjoshi/spotify-1million-tracks) , which includes an interesting attribute called "popularity" alongside various other son attributes over 1 million tracks. Our objective is to understand the factors that influence a song to be popular and build a befitting linear regression model with "populatity" as the response variable.
+
+The dataset is available on Kaggle and was extracted from the Spotify API using Spotify (Python library). It covers songs from over 60,000 artists and across 82 genres between 2000 and 2023. The dataset includes categorical variables like key and mode, as well as numerical features (e.g., danceability, energy, acousticness, and valence) ranging from 0.0 to 1.0.
+
+We aim to apply all the techniques taught to us in STAT 420 course in our model building exercise and gain insights which could be helpful guide for songwriting decisions with the aim of achieving popularity
+
+*Please note that our appendix contains a lot of steps that were undertaken by us to further finesse our approach. Whilst they may not be relevant to the end result but have been some significant time consuming iterations. This data set is large and with the limitations around hardware that we have available, we have tried our best to accommodate computations by taking sensible assumptions for interpreting the response variable*
+
+**"All models are wrong, some are useful." - George Box**
+
+# Methods
+
+We start by importing the required libraries.
+
+```{r, warning = FALSE}
+library(knitr)
+library(ggplot2)
+library(GGally)
+library(MASS)
+library(gridExtra)
+library(preprocessCore)
+library(lmtest)
+```
+
+Let's have the first glance of the data.
+
+```{r}
+data <- read.csv("F:/MCS DS/Applied Stats with R/Group Project/data/spotify_data.csv")
+str(data)
+```
+
+## Data Preprocessing
+
+By applying these changes, the dataset will be made more concise and user-friendly
+
+-   The index column and the "track_id" column will be removed.
+
+-   The "mode" values will be changed from 0 and 1 to "minor" and "major."
+
+-   The duration will be converted from milliseconds to minutes.
+
+-   Factor variables will be created for certain columns.
+
+```{r}
+data$mode <- ifelse(data$mode == 1, "major", "minor")
+data$duration_m <- data$duration_ms / 1000 / 60
+
+data$year <- factor(data$year)
+data$genre <- factor(data$genre)
+data$key <- factor(data$key)
+data$mode <- factor(data$mode)
+data$time_signature <- factor(data$time_signature)
+
+data <- subset(data, select = -c(X, track_id, duration_ms))
+
+str(data)
+```
+
+No null values found
+
+```{r}
+colSums(is.na(data))
+```
+
+[Summary:]{.underline}
+
+-   The dataset contains 18 variables, with two of them being the artist name and track name, which will not be used in the model but only for exploration and interpretation.
+
+-   The response variable we will use is **"popularity,"** and there are 15 other variables that can serve as predictors. Among these, *10 are numeric,* and *5 are categorical factor* variables.
+
+## Data Exploration and Analysis
+
+### Data Description
+
+We can now look at the summary of the data which shows statistics of the different variables.
+
+```{r}
+summary(data)
+```
+
+In this analysis exercise, our primary objective is to explain and predict the "popularity" variable, which Spotify calculates using an algorithm primarily based on the total number of plays a track has received and the recency of those plays.
+
+***Among the variables at our disposal, the artist and track names, as well as the year and genre, are self-evident. Additionally, we have more factual categorical variables as below:***
+
+1.  Key: ranges from 0 to 11 and indicates the key the track is in starting from 0 = C.
+2.  Mode: refers to whether the track is in major or minor scale.
+3.  Time signature: An estimated time signature which specifies how many beats are in a bar.
+
+***The numerical variables primarily encompass audio features of the track:***
+
+1.  Danceability: Danceability describes how suitable a track is for dancing based on a combination of musical elements including tempo, rhythm stability, beat strength, and overall regularity.
+2.  Energy: Energy is a measure from 0.0 to 1.0 and represents a perceptual measure of intensity and activity. Typically, energetic tracks feel fast, loud, and noisy.
+3.  Loudness: The overall loudness of a track in decibels (dB).
+4.  Speechiness: Speechiness detects the presence of spoken words in a track.
+5.  Acousticness: A confidence measure from 0.0 to 1.0 of whether the track is acoustic.
+6.  Instrumentalness: Predicts whether a track contains no vocals. "Ooh" and "aah" sounds are treated as instrumental in this context.
+7.  Liveness: Detects the presence of an audience in the recording.
+8.  Valence: A measure from 0.0 to 1.0 describing the musical positiveness conveyed by a track. Tracks with high valence sound more positive (e.g. happy, cheerful, euphoric), while tracks with low valence sound more negative (e.g. sad, depressed, angry).
+9.  Tempo: The overall estimated tempo of a track in beats per minute (BPM).
+10. Duration: The duration of the track in minutes.
+
+More on the variables can be read on the [Spotify API documentation](https://developer.spotify.com/documentation/web-api).
+
+The dataset will be refined by keeping tracks with a maximum duration of 40 minutes, as tracks exceeding this length are often considered albums by the British Phonographic Industry. Additionally, tracks with a duration exceeding 100 minutes will be excluded, as they do not realistically represent standard song lengths. By applying these criteria, a reliable and realistic dataset will be prepared for further analysis.
+
+```{r}
+data <- data[data$duration_m <= 40, ]
+summary(data$duration_m)
+```
+
+One other thing we want to verify is the 0 values n tempo.
+
+```{r}
+head(data[data$tempo == 0, 1:2], 10)
+```
+
+After listening to some of those, it was verified that the tempo values of 0 are legitimate for tracks without a beat.
+
+Concerning the popularity values of 0, it is suspected that there might be non-song content contaminating the data, as often encountered in Spotify's database.
+
+Alternatively, it is possible that a dataset bug caused these values, given that a popularity value of exactly 0 without any fractional streams implies no actual plays.
+
+***To investigate these anomalies further, the tracks with zero popularity will be examined manually to ascertain the reason behind these values.***
+
+```{r}
+head(data[data$popularity == 0, 1:2], 10)
+```
+
+After conducting a thorough examination of examples, it was observed that some tracks, such as "Greetings" by Joni Haastrup, have millions of streams. This discovery raises concerns about the presence of mistakes where certain songs were erroneously added with a popularity value of zero.
+
+To gain a clearer understanding, we will categorize the songs based on their popularity values. We will determine the number of songs with zero popularity and the number of songs with any other non-zero popularity values. This analysis will allow us to identify the extent of the issue and assess the overall data integrity.
+
+```{r}
+print(paste("Number of tracks with zero popularity:", nrow(data[data$popularity == 0, ])))
+print(paste("Number of tracks with non-zero popularity:", nrow(data[data$popularity > 0, ])))
+```
+
+For some reason tracks with zero popularity are over 10% of the dataset, which other than being suspicious is also VERY unbalanced.
+
+We decide to remove these observations as there seems to be so many of them, also in cases that it doesn't make sense.
+
+```{r}
+data <- data[data$popularity > 0, ]
+```
+
+### Numerical Variables Analysis
+
+We explore the numerical variables and the relationships between them. Please note that pairwise scatter plots on these large sample of dataset was close to impossible. We have added a pairwise plot for sampled 10,000 observations from the dataset to illustrate relationship between variables
+
+```{r}
+set.seed(42)
+
+sample_data = data[sample(nrow(data),10000),]
+num_vars = sapply(sample_data, is.numeric)
+categorical_vars = names(sample_data)[sapply(sample_data, function(x) is.factor(x) || is.character(x))]
+num_data = sample_data[, num_vars]
+cat_data = sample_data[,categorical_vars]
+
+#TAKE THE SAMPLE FOR ANALYSIS HERE
+
+pair_plot_sample = ggpairs(num_data, upper = list(continuous = wrap("cor", size = 6))) +
+  theme_bw() + 
+  theme(axis.line=element_blank(),
+        axis.text=element_blank(),
+        axis.ticks=element_blank(),
+        text = element_text(size = 30))
+```
+
+```{r, warning = FALSE, fig.width=25, fig.height=15}
+print(pair_plot_sample, progress = F)
+```
+
+Furthermore, We have also done a simple correlation heat map for the full data set to check for any collinearity issues around the data
+
+```{r}
+library(GGally)
+ggcorr(num_data, 
+       nbreaks = 4,
+       name ="Correlation Heatmap Levels",
+       low = "orange",
+       mid ="white",
+       high = "dodgerblue",
+       geom ="circle")
+
+```
+
+Some inferences we could draw from the heatmap of correlations here are
+
+-   Energy has some strong positive correlation with loudness
+
+-   Speechiness has strong negative correlation with loudness and energy. We could potentially explain the response using one of the three predictors here in a simpler /optimised model
+
+-   Similarly dance-ability and valence have strong positive correlations alluding to potential collinearity issues
+
+Below we show the distributions of the full data set for all the numeric variables to see for any potential discrepancies and hindrances to our constant variance and normality assumptions
+
+```{r}
+#colnames(num_data)
+#colnames(sample_data)
+#colnames(boxcox_data)
+```
+
+```{r warning =FALSE}
+library(reshape2)
+par(mfrow = c(3,4))
+for (col in 1:ncol(num_data)) {
+  hist(num_data[,col], main =colnames(num_data)[col], xlab =colnames(num_data)[col], col ="dodgerblue", border = "orange")
+}
+```
+
+Let's highlight some interesting points:
+
+-   The first thing to observe is how difficult it is to write a popular song. Even after we removed songs with 0 popularity the distribution is still very left-skewed and the mean is only 21.3 out of 100.
+
+-   The multiple histogram showing the numeric variables are skewed with a multitude of ranges which hints that transformations will be needed if we want better prediction results.
+
+-   We will consider box-cox transformations for this task preemptively to check model results
+
+```{r}
+eps = 1e-8
+# Function to calculate the optimal lambda for a variable using Box-Cox
+get_optimal_lambda <- function(variable) {
+  lm_formula <- as.formula(paste(variable, "+ eps ~ 1"))
+  result <- boxcox(lm_formula, data = num_data, plot=FALSE)
+  return(result$x[which.max(result$y)])  # Return the optimal lambda
+}
+
+# Create an empty data frame to store the results
+table_optimal_lambdas <- data.frame(variable = character(), optimal_lambda = numeric(), stringsAsFactors = FALSE)
+
+# Use a loop to get the optimal lambda for each variable
+for (var in names(num_vars[num_vars])) {
+  if (min(data[[var]]) < 0) {
+    optimal_lambda = 1
+  }
+  else {
+    optimal_lambda = get_optimal_lambda(var)
+  }
+  table_optimal_lambdas <- rbind(table_optimal_lambdas, data.frame(variable = var, optimal_lambda = optimal_lambda))
+}
+
+# Print the table
+print(table_optimal_lambdas)
+```
+
+Save the transformed variables with the recommended lambdas into a new dataframe.
+
+```{r}
+apply_boxcox_transformation <- function(variable, lambda) {
+  transformed_variable <- if (abs(lambda) < 0.01) {
+    log(num_data[[variable]] + eps)
+  } else {
+    (num_data[[variable]]^lambda - 1) / lambda
+  }
+  return(transformed_variable)
+}
+
+categorical_vars <- names(num_data)[sapply(num_data, function(x) is.factor(x) || is.character(x))]
+
+# Create a new data frame to store the transformed data
+boxcox_data <- data.frame(
+  sapply(names(num_vars[num_vars]), function(var) apply_boxcox_transformation(var, table_optimal_lambdas[table_optimal_lambdas$variable == var, "optimal_lambda"])),
+  num_data[categorical_vars],  # Add the categorical columns from the original data
+  stringsAsFactors = FALSE
+)
+boxcox_data <- boxcox_data[names(num_data)]
+```
+
+```{r}
+
+boxcox_pair_plot_sample = ggpairs(boxcox_data, upper = list(continuous = wrap("cor", size = 6))) +
+  theme_bw() + 
+  theme(axis.line=element_blank(),
+        axis.text=element_blank(),
+        axis.ticks=element_blank(),
+        text = element_text(size = 30))
+
+```
+
+```{r, warning = FALSE, fig.width=25, fig.height=15}
+print(boxcox_pair_plot_sample, progress = F)
+```
+
+Below we see the impact of transformations on the response and predictor and we can see that some of
+
+```{r warning =FALSE}
+library(reshape2)
+boxcox_num_data <- boxcox_data
+par(mfrow = c(3,4))
+for (col in 1:ncol(boxcox_num_data)) {
+  hist(boxcox_num_data[,col], main =colnames(boxcox_num_data)[col], xlab =colnames(boxcox_num_data)[col], col ="dodgerblue", border = "orange")
+}
+
+```
+
+One more interesting analysis to try is to bin the popularity into 10 chunks and see the difference in each variable across the different bins of popularity.
+
+```{r, fig.width=20, fig.height=15}
+data$popularity_bins <- cut(data$popularity, breaks = 10)
+plot_list <- list()
+
+for (column in names(data)) {
+  if (column != "popularity_bins" && column != "popularity" && num_vars[column]) {
+    plot <- ggplot(data, aes(x = popularity_bins, y = .data[[column]], fill = popularity_bins)) +
+      geom_boxplot() +
+      labs(x = "Popularity Bins", y = column, title = paste("Distribution of", column, "by Popularity Bins")) +
+      theme(axis.text.x = element_blank(), legend.position = "none") +
+      facet_grid(~ popularity_bins, scales = "free_x", space = "free_x", switch = "x")
+    
+    plot_list[[column]] <- plot
+  }
+}
+
+grid.arrange(grobs = plot_list, ncol = 2)
+data <- subset(data, select = -c(popularity_bins))
+```
+
+From the plots, we observe that as popularity increases, the numerical predictors exhibit less variance and fewer outliers, stabilizing in higher bins.
+
+There is a weak positive trend in danceability and valence, indicating that popular songs tend to be happier and more danceable.
+
+Energy and loudness show similar behavior, with loudness having less variance. However, both do not appear to have a clear relationship with popularity.
+
+Instrumentalness and speechiness decrease significantly as popularity grows, suggesting that popular songs tend to avoid being purely instrumental or containing spoken speech.
+
+The most apparent trend is the negative correlation between acousticness and popularity, implying that acoustic songs have lower chances of becoming popular.
+
+The tempo's mean remains relatively stable across bins, but outliers decrease with increasing popularity. A polynomial transformation might be worth exploring here.
+
+Lastly, longer songs tend to have lower popularity, as most of them fall in the lower half of the popularity bins.
+
+### Categorical Variables Analysis
+
+Now let's take a look at the impact of the categorical predictors. We start with the genre, and since it has many values and plotting would be difficult, what we can do is check the genres with the best and worst mean popularity.
+
+```{r}
+mean_popularity_by_genre <- aggregate(popularity ~ genre, data, mean)
+
+best_mean_popularity_by_genre <- mean_popularity_by_genre[order(-mean_popularity_by_genre$popularity), ]
+worst_mean_popularity_by_genre <- mean_popularity_by_genre[order(mean_popularity_by_genre$popularity), ]
+```
+
+```{r}
+print(head(best_mean_popularity_by_genre, 10))
+```
+
+```{r}
+print(head(worst_mean_popularity_by_genre, 10))
+```
+
+As expected, the genre significantly influences popularity, as evidenced by a considerable difference in mean popularity across genres.
+
+However, the sheer number of genres (82 values) poses a challenge, particularly when considering potential interactions with other variables. To address this, we will introduce a new variable called "upper_genre," which will be a mapping of the current genres to higher-level genres. We will conduct careful listening, research, and examination of the current genres to categorize them into appropriate upper genres. This mapping will enable us to work with a more manageable set of categories and use the upper genre with caution when exploring interactions with other variables.
+
+```{r, warning=FALSE}
+genre_mapping <- list(
+  "rock" = c("alt-rock", "garage", "hard-rock", "psych-rock", "rock", "rock-n-roll"),
+  "metal" = c("black-metal", "death-metal", "emo", "goth", "grindcore", "hardcore", "metal", "metalcore", "heavy-metal"),
+  "electronic" = c("ambient", "breakbeat", "chicago-house", "dance", "dancehall", "deep-house", "detroit-techno",
+                   "drum-and-bass", "dub", "dubstep", "edm", "electro", "electronic", "hardstyle", "house",
+                   "minimal-techno", "progressive-house", "techno", "trance", "party", "chill", "club", "industrial"),
+  "pop" = c("cantopop", "indie-pop", "k-pop", "pop", "power-pop", "pop-film"),
+  "country" = "country",
+  "folk" = "folk",
+  "classical/opera" = c("classical", "opera"),
+  "hip-hop" = "hip-hop",
+  "blues" = "blues",
+  "jazz" = "jazz",
+  "soul" = "soul",
+  "world" = c("indian", "spanish", "swedish", "tango", "forro", "sertanejo", "salsa", "samba", "french", "german", "afrobeat"),
+  "ska" = "ska",
+  "punk" = c("punk", "punk-rock"),
+  "funk/disco" = c("funk", "disco"),
+  "trip-hop" = "trip-hop",
+  "acoustic" = c("acoustic", "singer-songwriter", "songwriter", "sad", "guitar", "piano"),
+  "new-age" = "new-age",
+  "other" = c("comedy", "gospel", "romance", "show-tunes", "sleep", "groove")
+)
+
+map_genre <- function(genre) {
+  for (key in names(genre_mapping)) {
+    if (genre %in% unlist(genre_mapping[[key]])) {
+      return(key)
+    }
+  }
+}
+
+cat_data$upper_genre <- sapply(cat_data$genre, map_genre)
+
+```
+
+After categorizing the genres, we found inconsistencies in the genre values across different songs, likely due to the algorithm-based nature of the variable. Consequently, we will proceed with a model that excludes the genre, even in its reduced form.
+
+Before moving forward, we will examine the average popularity of the new upper genres.
+
+This analysis will provide valuable insights into the popularity variations across different higher-level genres, helping us make informed decisions.
+
+```{r}
+mean_popularity_by_upper_genre <- aggregate(popularity ~ upper_genre, data, mean)
+
+best_mean_popularity_by_upper_genre <- mean_popularity_by_upper_genre[order(-mean_popularity_by_upper_genre$popularity), ]
+worst_mean_popularity_by_upper_genre <- mean_popularity_by_upper_genre[order(mean_popularity_by_upper_genre$popularity), ]
+```
+
+```{r}
+print(head(best_mean_popularity_by_upper_genre, 10))
+```
+
+```{r}
+print(head(worst_mean_popularity_by_upper_genre, 10))
+```
+
+Now we can look at the year variable.
+
+```{r, fig.width=25, fig.height=6}
+mean_popularity_by_year <- aggregate(data$popularity, by = list(year = data$year), mean)
+mean_popularity_by_year <- reshape2::melt(mean_popularity_by_year, id.vars = "year")
+
+ggplot(mean_popularity_by_year, aes(x = year, y = value, group = variable, color = variable)) +
+  geom_line() +
+  geom_point() +
+  labs(x = "Year", y = "Mean Popularity", title = "Mean Popularity by Year") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        text = element_text(size = 22)) +
+  theme(legend.position = "none")
+```
+
+Since the popularity is based also on whether the track was recently played, we see greater popularity to recent songs which makes sense. However, our main goal is to understand what elements of a song have impact on making it popular, and when writing a song it is not possible to change the year it is released in. In other words, the year is not going to help us say what makes a song popular since the popularity is biased towards recent songs and the time is not something an artist controls.
+
+In order to be able to explain the model but also utilize the year in our predictions, we will use the year variable to interact with all the other variables, and then we can select each year and see how the parameters of the other variables change. For example, by interacting the year with the rest we will be able to select the year 2023 and see how a song should be in order to maximize its chances of popularity in 2023.
+
+Despite all that, we are still curious to see the variation in the characteristics of songs across different years, and see what features of songs from different years contribute to its popularity right now. Let's see the mean of each variable as a function of the year, and also a plot of correlation with the popularity by year.
+
+```{r, fig.width=25, fig.height=8}
+mean_data <- aggregate(data[, num_vars], by = list(year = data$year), mean)
+mean_data = subset(mean_data, select = -c(popularity, tempo, duration_m, loudness))
+mean_melted <- reshape2::melt(mean_data, id.vars = "year")
+
+ggplot(mean_melted, aes(x = year, y = value, group = variable, color = variable)) +
+  geom_line() +
+  geom_point() +
+  labs(x = "Year", y = "Mean Value",
+       title = "Mean of [0, 1] Ranged Numerical Variables as a Function of Year") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        text = element_text(size = 22))
+```
+
+```{r, fig.width=25, fig.height=8}
+cor_data <- data.frame(year = unique(data$year))
+cor_data$year <- as.numeric(as.character(cor_data$year))
+
+for (var in names(num_vars[num_vars])) {
+  if (var != "popularity"){
+    cor_values <- sapply(unique(data$year), function(y) {
+      subset_data <- subset(data, as.numeric(as.character(year)) == y)
+      cor(subset_data[[var]], subset_data$popularity)
+    })
+    
+    cor_data[var] <- cor_values
+  }
+}
+
+cor_melted <- reshape2::melt(cor_data, id.vars = "year")
+
+ggplot(cor_melted, aes(x = year, y = value, group = variable, color = variable)) +
+  geom_line() +
+  geom_point() +
+  labs(x = "Year", y = "Correlation with Popularity",
+       title = "Correlation with Popularity Over the Years") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        text = element_text(size = 22))
+```
+
+To our surprise, there are no significant trends in the means over the years. The only visible changes are the drop in the valence which generally means that songs became sadder, and the rise and fall of energy that reached a peak around 2010.
+
+In the correlations plot we see a clear rise in the impact danceability and energy have on the popularity, especially after 2020. Groovy energetic songs are becoming more and more likable. The duration went from 0.0 to almost -0.2 at some point, which highlights that popular songs are getting shorter.
+
+Now let's see how the time signature, key and mode affect the popularity.
+
+```{r, fig.height=10}
+ts_pop = ggplot(data, aes(x = time_signature, y = popularity, fill=time_signature)) +
+  geom_boxplot() +
+  theme(legend.position = "none") +
+  labs(x = "Time Signature", y = "Popularity", title = "Distribution of Popularity by Time Signature")
+
+key_pop = ggplot(data, aes(x = key, y = popularity, fill=key)) +
+  geom_boxplot() +
+  theme(legend.position = "none") + 
+  labs(x = "Key", y = "Popularity", title = "Distribution of Popularity by Key")
+
+mode_pop = ggplot(data, aes(x = mode, y = popularity, fill=mode)) +
+  geom_boxplot() +
+  theme(legend.position = "none") + 
+  labs(x = "Mode", y = "Popularity", title = "Distribution of Popularity by Mode")
+
+grid.arrange(ts_pop, key_pop, mode_pop, ncol = 1)
+```
+
+There are no significant changes in the distribution of the popularity between different values of time signature, key or mode. Maybe we should check the combination of key and mode since they often touch similar characteristics of a song.
+
+```{r, fig.width=16, fig.height=5}
+data$key_mode_combination <- interaction(data$mode, data$key)
+
+combined_plot <- ggplot(data, aes(x = key_mode_combination, y = popularity, fill = mode)) +
+  geom_boxplot() +
+  theme(legend.position = "none") +
+  labs(x = "Key and Mode", y = "Popularity", title = "Distribution of Popularity by Key and Mode") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  facet_wrap(~ key_mode_combination, scales = "free_x", ncol = 24)
+
+print(combined_plot)
+
+data <- subset(data, select = -c(key_mode_combination))
+```
+
+Still doesn't look significant for the popularity. In terms of the mean and even the outliers the boxplots don't look too different.
+
+There is little chance that we will need the time signature, key or mode in the final model.
+
+### Conclusions
+
+Before building the model, we can lay out a few conclusions from the sections above that will help us in building a better model and more importantly, write a hit song!
+
+-   The distribution of the popularity variable is left-skewed, indicating that most songs have relatively low popularity scores, with only a few reaching higher scores. To tackle that in our model we might want to try transforming the response, together with some other numerical variables that are skewed. After using the Box-Cox method we retrieved the optimal lambdas for each variables and implemented it in a dedicated dataframe. The result was still unsatisfactory so we had to use a more robust way of normalizing data and forcing it into a normal distribution, such as quantile normalization. The normalized data was saved into a dataframe which we are likely to use when fitting models.
+
+-   There is no single variable that is strongly correlated with the popularity. This means that a combination of factors is likely to influence the popularity of a song, and that we will need to try a few interactions.
+
+-   The most popular songs are usually short, upbeat, energetic, not instrumental or acoustic and do not include spoken words.
+
+-   There are some potential collinearity issues we could avoid. Energy, loudness and acousticness have some relationship between them (acousticness seems to impact the popularity the most out of them), and also danceability and valence correlate. We should be careful using loudness and tempo because they are most probably used to calculate other variables.
+
+-   The genre is a problematic variable. The average popularity across different genres is variant, so it has some importance. Together with that, there a many different genres which could make the models complex. That's why we introduced the reduced upper genre. Also there are many errors with the genre since it was created by a Spotify algorithm, possibly using the other variables we have in the dataset.
+
+-   Because of the way the popularity is computed, the year is very important as well. However, we want to be able to say how to write a song for it to be popular, and since the year of release is not something you control we would prefer to interact that variable with the numerical variables we choose to include, which will allow us to specify the recipe for popularity on each year.
+
+-   The time signature, key and mode don't seem to affect the popularity so much.
+
+Now we can proceed and build some models.
+
+## Model Building
+
+### Define Test Criteria
+
+First we split the data sets into
+
+Split the data into 70% train data and 30% test data.
+
+```{r}
+set.seed(42)
+ratio = 0.7
+
+#Regular Data
+sample_data = cbind(num_data,cat_data)
+data_fit <- subset(sample_data, select = -c(artist_name, track_name))
+#Box Cox Data - Transformed
+boxcox_data = cbind(boxcox_data,cat_data)
+boxcox_fit <- subset(boxcox_data, select = -c(artist_name, track_name))
+
+sample_size = floor(ratio * nrow(data_fit))
+data_idx = sample(nrow(data_fit), sample_size)
+
+data_trn = data_fit[data_idx, ]
+data_tst = data_fit[-data_idx, ]
+
+bc_trn = boxcox_fit[data_idx,]
+bc_tst = boxcox_fit[-data_idx,]
+
+
+```
+
+Define a function which is performing several tests on a given model and test data. Note that the shapiro test is limited to 5000 residuals. Since all data sets used here are way larger and therefore the number of residuals too, a random sample size of 5000 residuals is selected. This makes the result of that test somewhat unreliable, but it still give us an idea how good or bad the model might be.
+
+```{r}
+check_model = function(model, test_data){
+  # 
+  sample_idx = sample(length(resid(model)), 5000)
+  residuals_sample = resid(model)[sample_idx]
+  
+  # shapiro
+  shapiro =  shapiro.test(residuals_sample)$p.value
+  
+  # bp test
+  bptest = bptest(model)$p.value
+  
+  # leverage
+  high_leverage_count = sum(hatvalues(model) > 2 * mean(hatvalues(model)))
+  
+  # outliers
+  outliers_count = length(rstandard(model)[abs(rstandard(model)) > 2])
+  
+  # influence
+  influence_count = sum(cooks.distance(model) > 4 / length(cooks.distance(model)))
+  
+  # vif
+  vif_values <- car::vif(model)
+  predictor_names = names(model$coefficients)[-1]
+  high_vif_count = sum(vif_values > 5)
+  high_vif_predictors = predictor_names[vif_values > 5]
+
+  
+  # loocv_rmse
+  loocv_rmse = sqrt(mean((resid(model) / (1 - hatvalues(model))) ^ 2))
+  
+  # adjusted r squared
+  adjusted_r_squared = summary(model)$adj.r.squared
+
+  # Get rsme using the test data
+  predictions <- predict(model, newdata = test_data)
+  rsme <- sqrt(mean((test_data$popularity - predictions)^2))
+
+  
+  # Creating a data frame to store the results
+  results = data.frame(
+    shapiro = shapiro,
+    bptest = bptest,
+    high_leverage_count = high_leverage_count,
+    outliers_count = outliers_count,
+    influence_count = influence_count,
+    high_vif_count = high_vif_count,
+    high_vif_predictors = paste(high_vif_predictors, collapse = ", "),
+    rsme = rsme,
+    loocv_rmse = loocv_rmse,
+    adjusted_r_squared = adjusted_r_squared
+  )
+
+ # Transpose the 'results' data frame to create a table with two columns
+
+Results = data.frame(
+  
+  Diagonistic = c("shapiro","bptest","high_leverage_count","outliers_count","influence_count","high_vif_count","high_vif_predictors","rmse","loocv_rmse","adjusted_r_squared"),
+  
+  Values = c(shapiro,bptest,high_leverage_count,outliers_count,influence_count,high_vif_count,paste(high_vif_predictors, collapse = ", "),rsme,loocv_rmse,adjusted_r_squared)
+  
+)
+  
+  
+# Print the results table
+knitr::kable(Results, col.names = c("Diagonistic", "Field Values"))
+
+}
+```
+
+Define a function to plot both the Fitted vs Residuals plot and the Q-Q Plot
+
+```{r }
+# TODO: Pass main and labels to function.
+plot_model <- function(model) {
+    par(mfrow = c(1,2))
+  # Fitted vs Residuals Plot
+  plot(fitted(model), resid(model), col = "grey", pch = 20,
+     xlab = "Fitted", ylab = "Residuals", main = "Fitted vs Residuals")
+  abline(h = 0, col = "darkorange", lwd = 2)
+  
+  # Q-Q Plot
+  qqnorm(resid(model), main = "Normal Q-Q Plot", col = "darkgrey")
+  qqline(resid(model), col = "dodgerblue", lwd = 2)
+}
+
+```
+
+### Full Additive Model
+
+The first model we build is a full additive one including all predictors. One exception is on the upper genre, since this sould be a replacement for gerne in a better explainable and useful model. The use data is the untransformed one.
+
+```{r}
+model_add_full = lm(popularity ~ . -upper_genre, data = data_trn)
+```
+
+Let's see how good the model performs
+
+```{r}
+check_model(model_add_full, data_trn)
+```
+
+```{r}
+
+plot_model(model_add_full)
+```
+
+```{r}
+#model with upper genre
+model_add_full_ug = lm(popularity ~ . - genre, data = data_trn)
+check_model(model_add_full_ug, data_trn)
+
+
+```
+
+```{r}
+plot_model(model_add_full_ug)
+```
+
+TODO: Describe the model
+
+### Data Transformation
+
+Samething on box Cox with and without categorical predictors
+
+```{r}
+
+model_box = lm(popularity ~ . -genre, data = bc_trn)
+check_model(model_box, bc_trn)
+```
+
+```{r}
+plot_model(model_box)
+```
+
+-   Fitted residuals look better than the previous run, which normal distribution is still a suspect, we need to appreciate the shape is fine as more popular songs are in the middle of the range than the exterme lows or extreme highs
+
+-   Normal Q-Q Plot looks decent on the box Cox transformation
+
+-   Below are all responses with p-values \> 0.01
+
+```{r}
+#
+t(summary(model_box)$coefficients[ which(summary(model_box)$coefficients[, "Pr(>|t|)"] > 0.01),1])
+
+```
+
+Model simplification by reducing factors
+
+**Time signature, key and mode** do not seem to add much to popularity as illustrated in the data earlier. lets remove them
+
+*Furthermore, from our correlation analysis,*
+
+-    lets just remove **valence**, which would be explained by **danceability** given high corrleation between the two predictors
+
+-   Furthermore, lets remove **loudness** and **speechiness** , which are correlated to Energy positively and negatively. This is kind of obvious as a speechy song would tend to have low energy than that of a loud song. Now Spotify, might use loudness and **speechiness** to calculate Energy
+
+-   After removal of these predictors, to form a smaller box_cox model we will then do an anova test
+
+    **Smaller BOX COX Model**
+
+check_model(model_box_small, bc_trn)
+
+```{r}
+
+model_box_small = lm(popularity ~ . - genre -key -time_signature -mode- valence - loudness - speechiness, data = bc_trn)
+
+check_model(model_box_small, bc_trn)
+
+```
+
+```{r}
+plot_model(model_box_small)
+```
+
+```{r}
+
+anova(model_box_small,model_box)
+
+```
+
+*Given Low p values we fail to reject the smaller model*
+
+Now lets run a backwardation AIC model, to see if we could optimise our model search
+
+```{r}
+
+model_box_aic = step(model_box_small, direction = "backward")
+
+
+```
+
+```{r}
+
+#chosen model from AIC
+
+plot_model(model_box_aic)
+
+
+
+```
+
+```{r}
+check_model(model_box_aic, bc_trn)
+```
+
+```{r}
+summary(model_box_aic)
+```
+
+Now lets have a look at 2 way interactions over the model_box \_aic
+
+```{r}
+
+#get all possible 2 way interactions
+model_box_int = lm(popularity ~ (danceability + energy + acousticness + instrumentalness + liveness + duration_m + year + upper_genre)^2, data = bc_trn )
+#now run backward aic for reducing the predictors
+model_box_int = step(model_box_int, direction = "backward")
+
+```
+
+```{r}
+check_model(model_box_int, bc_trn)
+
+```
+
+```{r}
+plot_model(model_box_int)
+```
+
+```{r}
+summary(model_box_int)
+```
+
+Summary on interaction models , whilst they are complex, We dont think they are materially better given the interaction variables being related to categoriies such as genre. The individual p values of coeficients are quite off and high. This tells us that there could be existence of canonical correlations due to various interactions. As an example a hip hop genre is popular and had largeduration and hence it improved the danceability and this popularity. Given the already complicated data around responses , we would avoid interaction here in order to illustrate simplicity in explanation
+
+Discussion
+
+# Appendix
+
+Pairwise plot of sample data
+
+The report was composed and written by Soumya Nanda, Jonas Jansen and Noam Isachar.
