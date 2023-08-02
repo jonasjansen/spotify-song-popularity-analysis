@@ -520,13 +520,15 @@ Before building the model, we can lay out a few conclusions from the sections ab
 
 Now we can proceed and build some models.
 
+
 ## Model Building
 
 ### Define Test Criteria
 
-First we split the data sets into 
-
-Split the data into 70% train data and 30% test data. 
+Before we start fitting some models, we split the data into test and train data.
+This helps us evaluating the models, especially towards overfitting. 
+The chosen ratio is 70% train data and 30% test data. 
+We do this for both the quantile transformed and the not transformed data set.
 
 
 ```{r}
@@ -541,7 +543,6 @@ data_idx = sample(nrow(data_fit), sample_size)
 data_trn = data_fit[data_idx, ]
 data_tst = data_fit[-data_idx, ]
 
-
 # quantile normalized data set
 quantile_data_fit <- subset(quantile_data, select = -c(artist_name, track_name))
 
@@ -552,15 +553,15 @@ quantile_data_tst = quantile_data_fit[-quantile_data_idx, ]
 ```
 
 
-Define a function which is performing several tests on a given model and test data.
-Note that the shapiro test is limited to 5000 residuals. Since all data sets used here are way larger and therefore the number of residuals too,
-a random sample size of 5000 residuals is selected.
-This makes the result of that test somewhat unreliable, but it still give us an idea how good or bad the model might be.
+To make the evaluation of the fitted models easier, we define a function which is calculating the most important tests for us.
+The funtion has the model and the test dataset as parameter defined.
+The first test is the Shapiro-Wilk test. 
+Note that the shaprio.test function in R is limited to accept max. 5000 residuals. Since the original dataset contains 1 million tracks, these are too many residuals even after splitting the dataset into test and train. 
+As a workaround, a random sample size of 5000 residuals is picked.
+This makes the result of that test somewhat unreliable, since it can get a biased sample. But the value should still give us an idea how good or bad the model might be. 
 
-```{r}
-# temp
-names(summary(model_add_full))
-```
+Further test criteria are the Breusch-Pagan test for checking the constant variance assumption, loocv_rmse for cross validation the model and the rsme calcualted from the give test data.
+The models R-Squared and Adjusted R-Squared values are returned, too.
 
 
 ```{r}
@@ -599,7 +600,7 @@ check_model = function(model, test_data){
 }
 ```
 
-Define a function to plot both the Fitted vs Residuals plot and the Q-Q Plot
+Further a function for plotting the Fitted vs Residuals Plot and the Q-Q Plot is defined.
 
 ```{r}
 # TODO: Pass main and labels to function.
@@ -616,23 +617,24 @@ plot_model <- function(model) {
 
 ```
 
+
 ### Full Additive Model
 
-The first model we build is a full additive one including all predictors. One exception is on the upper genre, since this sould be a replacement for gerne in a better explainable and useful model.
-The use data is the untransformed one. 
+Now the data is prepared and the tests are defined. We can start fitting.
+The first model we build is a full additive one including all predictors. One exception is on the upper genre, since this should be a replacement for gerne in a better explainable and useful model. And we choose the untransformed data set. This should give us a base to how much we need to do improving the model
 
 ```{r}
 model_add_full = lm(popularity ~ . -upper_genre, data = data_trn)
 ```
 
-Let's see how good the model performs
+Let's run the tests and see how good the model performs.
 
 ```{r}
 summary(model_add_full)
 ```
 
 ```{r}
-check_model(model_add_full, data_tst)
+(model_add_full_check <- check_model(model_add_full, data_tst))
 ```
 
 
@@ -640,61 +642,53 @@ check_model(model_add_full, data_tst)
 plot_model(model_add_full)
 ```
 
-
-TODO: Describe the model
-
+On the first look, the model itself looks significant. Nearly all variables are significant, only a few categorical predictors like genredisco or key9 are not.
+However, it is not suitable for prediction. The r_squared are a bit too low and rsme value are too high. 
+Further, both the constant variance assumption and the normal distribution assumptions are highly suspicious. 
+We need to adjust our model further.
 
 
 ### Data Transformation
 
 The next step is to focus on the very suspect normality and constant variance assumptions of the full additive model. 
-- Boxcox vs Qunatiles => Quantiles were better, only that is shown here
-- Tried several transformations of perdictors (and response) based on the findings in the data part. Only the best version is shown here. 
+The first thing changed was using transformed data. Box-Cox transformation led to worse results than using normalized quantiles. Hence we did not investigate any further in that direction. 
+Additional some transformations were applied on both response and predictors. Options were square root, polynoms, log, exp and inverse. 
+The biggest affect had using square root on the response. Transforming the predictors did not had much effect. Valence and Loudness could be improved using exp. But using both together made the model worse. So we choose loudness here. Transforming duration_m with exp helped, too. 
 
 
-```{r}
-model_add_quant_full = lm(popularity ~ . -upper_genre, data = quantile_data_trn)
-```
 
-```{r}
-summary(model_add_quant_full)
-```
-
-```{r}
-check_model(model_add_quant_full, quantile_data_tst)
-```
-
-```{r}
-plot_model(model_add_quant_full)
-```
 ```{r}
 formula = "sqrt(popularity)~danceability+energy+exp(loudness)+speechiness+acousticness+instrumentalness+liveness+valence+tempo+exp(duration_m)+key+mode+time_signature+genre"
 model_add_quant_trans = lm(formula, data = quantile_data_trn)
-summary(model_add_quant_trans)
-check_model(model_add_quant_trans, quantile_data_tst)
-plot_model(model_add_quant_trans)
 ```
 
 
+```{r}
+summary(model_add_quant_trans)
+```
 
-TODO: Describe results
-We could get way closer.
-quant and sqrt(pop) have the biggest effekt
-either valence or loudness exp. Both make it worse.
-exp(duration_m). 1/duration also possible but slighly worse.
-Removing genre, is making it more supsect, adding upper_genre has no effect. So let's keep it at genre for now.
-Adding year is making it more suspect
 
-No visible improvements could be achieved towards the constant variance assumption.
+```{r}
+(model_add_quant_trans_check <- check_model(model_add_quant_trans, quantile_data_tst))
+```
 
+
+```{r}
+plot_model(model_add_quant_trans)
+```
+
+This model looks better regarding normal the normal assumption. The Q-Q plot is not perfect but way better. The Shapiro-Wilk test failed to reject for sigma 0.05. But as said this might be biased due to the sample size.
+No visible improvements could be achieved towards the constant variance assumption. It is still bad. 
+The RSME stayed the same, but LOOCV RMSE looks way better. 
+On contrary, the Adjusted R Squared got worse.
+Trying to reduce the predictors with the help of AIC or BIC in a backward search did not work out. The predictor number stayed the same.
 
 
 
 ### Collinearity
 
-TODO: Replace car library with faraway.
-
-Using the model from before. Excluding upper_genre since it is a non specific subset for 
+As a next step, we check for collinearity issues. 
+We will use the transformed model and calculate the vif. We define vif values higher than 5 as problematic.
 
 ```{r}
 formula = "sqrt(popularity)~danceability+energy+exp(loudness)+speechiness+acousticness+instrumentalness+liveness+valence+tempo+exp(duration_m)+key+mode+time_signature+genre"
@@ -703,36 +697,39 @@ model_add_quant_vif = lm(formula, data = quantile_data_trn)
 
 
 ```{r}
-(vif_values <- faraway::vif(model_add_quant_vif))
+vif_values <- faraway::vif(model_add_quant_vif)
 (problematic_variables <- names(vif_values[vif_values > 5]))
+
 ```
 
-We see that the factor variable time_signature has vif values above the threshold of 5. This is problematic, it indicates that those variables are contributing to multicollinearity in our regression model. Therefore we remove them and do the test over again.
+We see that the factor variable time_signature has vif values above the threshold of 5. This is problematic, it indicates that those variables are contributing to multicollinearity in our regression model. Therefore we remove them and do the test again.
 
 ```{r}
 formula = "sqrt(popularity)~danceability+energy+exp(loudness)+speechiness+acousticness+instrumentalness+liveness+valence+tempo+exp(duration_m)+key+mode+genre"
 model_add_quant_no_vif = lm(formula, data = quantile_data_trn)
 ```
 
-
 ```{r}
-(vif_values <- faraway::vif(model_add_quant_no_vif))
+vif_values <- faraway::vif(model_add_quant_no_vif)
 (problematic_variables <- names(vif_values[vif_values > 5]))
 ```
 
-
+```{r}
+(model_add_quant_no_vif_check <- check_model(model_add_quant_no_vif, quantile_data_tst))
+```
 
 ```{r}
-check_model(model_add_quant_no_vif, quantile_data_tst)
 plot_model(model_add_quant_no_vif)
 ```
 
-TODO: Write text. Now all predictors are below the threshold.
-No changes on the assumptions, neither good nor bad.
+Now all predictors are below the threshold. Further no changes towards the constant variance and normality assumptions. The means we got a simpler and better explainable model with likely the same quality in terms of prediction.
+
 
 ### Interaction
 
-Let's see, if interactions are helpful
+In the data analysis we stated, that interactions might be helpful to better explain the popularity. 
+So in this step we will evaluate that. 
+Some interactions were added to the previous model, to see if we can get a better model.
 
 ```{r}
 formula = "sqrt(popularity)~danceability+energy+exp(loudness)+speechiness+acousticness+instrumentalness+liveness+valence+tempo+exp(duration_m)+key+mode+time_signature+genre+danceability:genre+speechiness:liveness+valence:tempo+energy:tempo+acousticness:instrumentalness+danceability:liveness"
@@ -742,7 +739,10 @@ model_int_quant_trans = lm(formula, data = quantile_data_trn)
 
 ```{r}
 summary(model_int_quant_trans)
-check_model(model_int_quant_trans, quantile_data_tst)
+```
+
+```{r}
+(model_int_quant_trans_check = check_model(model_int_quant_trans, quantile_data_tst))
 ```
 
 
@@ -750,21 +750,20 @@ check_model(model_int_quant_trans, quantile_data_tst)
 plot_model(model_int_quant_trans)
 ```
 
-The model performs better in terms of meeting the normal assumption.
-Also the fitted vs. residuals plot looks slightly better.
-
+The model performs slighly better in terms of meeting the normal assumption.
+The other test values do not vary. Therefore we get a slightly better model on the cost of explainability. 
 
 
 
 ### More Explainability
 
 Let's step back and use a more simpler model, which might be more useful for understanding the connections.
-It's important, that year is excluded. Futher we would like to use upper_genre instead of genre.
-The transformations are kept
+It's important, that year is excluded. Further, we would like to use upper_genre instead of genre.
+The transformations are kept. 
 
 ```{r}
-formula = "sqrt(popularity)~danceability+energy+exp(loudness)+speechiness+acousticness+instrumentalness+liveness+valence+tempo+exp(duration_m)+key+mode+genre"
-model_simple = lm(formula, data = quantile_data_trn)
+formula = "sqrt(popularity)~danceability+energy+exp(loudness)+speechiness+acousticness+instrumentalness+liveness+valence+tempo+exp(duration_m)+key+mode+upper_genre"
+model_explain = lm(formula, data = quantile_data_trn)
 ```
 
 ```{r}
@@ -772,12 +771,16 @@ summary(model_explain)
 ```
 
 ```{r}
-check_model(model_explain, quantile_data_tst)
+(model_explain_check <- check_model(model_explain, quantile_data_tst))
 ```
 
 ```{r}
 plot_model(model_explain)
 ```
+
+The results show, that the model gets measurable worse when replacing genre with upper gerne.
+The Normal Q-Q get more suspect, the test values get worse. Only the fitted vs residuals plot stays the same.
+
 
 # Results
 
