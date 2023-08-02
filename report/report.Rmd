@@ -36,7 +36,7 @@ library(MASS)
 library(gridExtra)
 library(preprocessCore)
 library(lmtest)
-library(car)
+library(faraway)
 ```
 
 Let's have the first glance of the data.
@@ -689,6 +689,7 @@ No visible improvements could be achieved towards the constant variance assumpti
 
 
 
+
 ### Collinearity
 
 TODO: Replace car library with faraway.
@@ -719,7 +720,6 @@ model_add_quant_no_vif = lm(formula, data = quantile_data_trn)
 (problematic_variables <- names(vif_values[vif_values > 5]))
 ```
 
-TODO: Write text. Now all predictors are below the threshold.
 
 
 ```{r}
@@ -727,16 +727,44 @@ check_model(model_add_quant_no_vif, quantile_data_tst)
 plot_model(model_add_quant_no_vif)
 ```
 
+TODO: Write text. Now all predictors are below the threshold.
+No changes on the assumptions, neither good nor bad.
+
+### Interaction
+
+Let's see, if interactions are helpful
+
+```{r}
+formula = "sqrt(popularity)~danceability+energy+exp(loudness)+speechiness+acousticness+instrumentalness+liveness+valence+tempo+exp(duration_m)+key+mode+time_signature+genre+danceability:genre+speechiness:liveness+valence:tempo+energy:tempo+acousticness:instrumentalness+danceability:liveness"
+model_int_quant_trans = lm(formula, data = quantile_data_trn)
+```
+
+
+```{r}
+summary(model_int_quant_trans)
+check_model(model_int_quant_trans, quantile_data_tst)
+```
+
+
+```{r}
+plot_model(model_int_quant_trans)
+```
+
+The model performs better in terms of meeting the normal assumption.
+Also the fitted vs. residuals plot looks slightly better.
+
+
 
 
 ### More Explainability
 
-Let's move towards a more explainable model
-
+Let's step back and use a more simpler model, which might be more useful for understanding the connections.
+It's important, that year is excluded. Futher we would like to use upper_genre instead of genre.
+The transformations are kept
 
 ```{r}
-str(quantile_data_trn)
-model_explain = lm(popularity ~ . -genre, data = quantile_data_trn)
+formula = "sqrt(popularity)~danceability+energy+exp(loudness)+speechiness+acousticness+instrumentalness+liveness+valence+tempo+exp(duration_m)+key+mode+genre"
+model_simple = lm(formula, data = quantile_data_trn)
 ```
 
 ```{r}
@@ -750,17 +778,6 @@ check_model(model_explain, quantile_data_tst)
 ```{r}
 plot_model(model_explain)
 ```
-
-TODO: This plot does not look as good as in the outsourced version. Find out why.
-
-TODO: Tell about model.
-
-
-### Interaction ???
-
-
-# TODO: Fit the explainable model with all two-way interactions. Run stepwise search to kick out unnecessary ones.
-
 
 # Results
 
