@@ -42,7 +42,7 @@ library(faraway)
 Let's have the first glance of the data.
 
 ```{r}
-data <- read.csv("../data/spotify_data.csv")
+data = read.csv("../data/spotify_data.csv")
 str(data)
 ```
 
@@ -51,16 +51,16 @@ str(data)
 We can get rid of the first column which is the index and also of the "track_id" column which is useless to us. For clarity, let's change the values of "mode" from 0 and 1 to "minor" and "major" and replace the duration from milliseconds to minutes. Finally, we can create factor variables out of some of the columns.
 
 ```{r}
-data$mode <- ifelse(data$mode == 1, "major", "minor")
-data$duration_m <- data$duration_ms / 1000 / 60
+data$mode = ifelse(data$mode == 1, "major", "minor")
+data$duration_m = data$duration_ms / 1000 / 60
 
-data$year <- factor(data$year)
-data$genre <- factor(data$genre)
-data$key <- factor(data$key)
-data$mode <- factor(data$mode)
-data$time_signature <- factor(data$time_signature)
+data$year = factor(data$year)
+data$genre = factor(data$genre)
+data$key = factor(data$key)
+data$mode = factor(data$mode)
+data$time_signature = factor(data$time_signature)
 
-data <- subset(data, select = -c(X, track_id, duration_ms))
+data = subset(data, select = -c(X, track_id, duration_ms))
 
 str(data)
 ```
@@ -111,7 +111,7 @@ More on the variables can be read on the [Spotify API documentation](https://dev
 The data looks clean but there is one case of outliers in the duration of tracks. Let's keep track with maximum length of 40 minutes, which is by itself very unusual but we can still think of some songs of that length (The Orb - The Blue Room). In fact, any track longer than 40 minutes has to be considered as an album by the British Phonographic Industry. In addition, it is safe to say that the maximum duration of 100 minutes is not something we want to base our model on as it doesn't realistically reflect real songs.
 
 ```{r}
-data <- data[data$duration_m <= 40, ]
+data = data[data$duration_m <= 40, ]
 summary(data$duration_m)
 ```
 
@@ -139,7 +139,7 @@ print(paste("Number of tracks with non-zero popularity:", nrow(data[data$popular
 For some reason tracks with zero popularity are over 10% of the dataset, which other than being suspicious is also VERY unbalanced. We decide to remove these observations as there seems to be so many of them, also in cases that it doesn't make sense.
 
 ```{r}
-data <- data[data$popularity > 0, ]
+data = data[data$popularity > 0, ]
 summary(data)
 ```
 
@@ -148,9 +148,9 @@ summary(data)
 Let's start exploring the numerical variables and the relationships between them.
 
 ```{r}
-num_vars <- sapply(data, is.numeric)
-num_data <- data[, num_vars]
-num_data_sample <- num_data[sample(nrow(num_data), 10000), ]
+num_vars = sapply(data, is.numeric)
+num_data = data[, num_vars]
+num_data_sample = num_data[sample(nrow(num_data), 10000), ]
 
 pair_plot_sample = ggpairs(num_data_sample, upper = list(continuous = wrap("cor", size = 6))) +
   theme_bw() + 
@@ -185,14 +185,14 @@ After getting the hint that transformations are required, let's run the Box-Cox 
 ```{r}
 eps = 1e-8
 # Function to calculate the optimal lambda for a variable using Box-Cox
-get_optimal_lambda <- function(variable) {
-  lm_formula <- as.formula(paste(variable, "+ eps ~ 1"))
-  result <- boxcox(lm_formula, data = data, plot=FALSE)
+get_optimal_lambda = function(variable) {
+  lm_formula = as.formula(paste(variable, "+ eps ~ 1"))
+  result = boxcox(lm_formula, data = data, plot=FALSE)
   return(result$x[which.max(result$y)])  # Return the optimal lambda
 }
 
 # Create an empty data frame to store the results
-table_optimal_lambdas <- data.frame(variable = character(), optimal_lambda = numeric(), stringsAsFactors = FALSE)
+table_optimal_lambdas = data.frame(variable = character(), optimal_lambda = numeric(), stringsAsFactors = FALSE)
 
 # Use a loop to get the optimal lambda for each variable
 for (var in names(num_vars[num_vars])) {
@@ -202,7 +202,7 @@ for (var in names(num_vars[num_vars])) {
   else {
     optimal_lambda = get_optimal_lambda(var)
   }
-  table_optimal_lambdas <- rbind(table_optimal_lambdas, data.frame(variable = var, optimal_lambda = optimal_lambda))
+  table_optimal_lambdas = rbind(table_optimal_lambdas, data.frame(variable = var, optimal_lambda = optimal_lambda))
 }
 
 # Print the table
@@ -212,8 +212,8 @@ print(table_optimal_lambdas)
 Save the transformed variables with the recommended lambdas into a new dataframe. Then, we plot the pair-plot again and see of the distributions resemble a normal distribution.
 
 ```{r}
-apply_boxcox_transformation <- function(variable, lambda) {
-  transformed_variable <- if (abs(lambda) < 0.01) {
+apply_boxcox_transformation = function(variable, lambda) {
+  transformed_variable = if (abs(lambda) < 0.01) {
     log(data[[variable]] + eps)
   } else {
     (data[[variable]]^lambda - 1) / lambda
@@ -221,19 +221,19 @@ apply_boxcox_transformation <- function(variable, lambda) {
   return(transformed_variable)
 }
 
-categorical_vars <- names(data)[sapply(data, function(x) is.factor(x) || is.character(x))]
+categorical_vars = names(data)[sapply(data, function(x) is.factor(x) || is.character(x))]
 
 # Create a new data frame to store the transformed data
-boxcox_data <- data.frame(
+boxcox_data = data.frame(
   sapply(names(num_vars[num_vars]), function(var) apply_boxcox_transformation(var, table_optimal_lambdas[table_optimal_lambdas$variable == var, "optimal_lambda"])),
   data[categorical_vars],  # Add the categorical columns from the original data
   stringsAsFactors = FALSE
 )
-boxcox_data <- boxcox_data[names(data)]
+boxcox_data = boxcox_data[names(data)]
 ```
 ```{r}
-boxcox_num_data <- boxcox_data[, num_vars]
-boxcox_num_data_sample <- boxcox_num_data[sample(nrow(boxcox_num_data), 10000), ]
+boxcox_num_data = boxcox_data[, num_vars]
+boxcox_num_data_sample = boxcox_num_data[sample(nrow(boxcox_num_data), 10000), ]
 
 boxcox_pair_plot_sample = ggpairs(boxcox_num_data_sample, upper = list(continuous = wrap("cor", size = 6))) +
   theme_bw() + 
@@ -256,12 +256,12 @@ Let's perform quantile normalization on the numerical variables and the show the
 quantile_data = as.data.frame(normalize.quantiles(as.matrix(num_data)))
 colnames(quantile_data) = colnames(num_data)
 quantile_data = cbind(quantile_data, data[categorical_vars])
-quantile_data <- quantile_data[names(data)]
+quantile_data = quantile_data[names(data)]
 ```
 
 ```{r}
-quantile_num_data <- quantile_data[, num_vars]
-quantile_num_data_sample <- quantile_num_data[sample(nrow(quantile_num_data), 10000), ]
+quantile_num_data = quantile_data[, num_vars]
+quantile_num_data_sample = quantile_num_data[sample(nrow(quantile_num_data), 10000), ]
 
 quantile_pair_plot_sample = ggpairs(quantile_num_data_sample, upper = list(continuous = wrap("cor", size = 6))) +
   theme_bw() + 
@@ -279,26 +279,27 @@ Beautiful. The distributions of the variables are not skewed and the scatterplot
 One more interesting analysis to try is to bin the popularity into 10 chunks and see the difference in each variable across the different bins of popularity.
 
 ```{r, fig.width=20, fig.height=15}
-data$popularity_bins <- cut(data$popularity, breaks = 10)
-plot_list <- list()
+data$popularity_bins = cut(data$popularity, breaks = 10)
+plot_list = list()
 
 for (column in names(data)) {
   if (column != "popularity_bins" && column != "popularity" && num_vars[column]) {
-    plot <- ggplot(data, aes(x = popularity_bins, y = .data[[column]], fill = popularity_bins)) +
+    plot = ggplot(data, aes(x = popularity_bins, y = .data[[column]], fill = popularity_bins)) +
       geom_boxplot() +
       labs(x = "Popularity Bins", y = column, title = paste("Distribution of", column, "by Popularity Bins")) +
       theme(axis.text.x = element_blank(), legend.position = "none") +
       facet_grid(~ popularity_bins, scales = "free_x", space = "free_x", switch = "x")
     
-    plot_list[[column]] <- plot
+    plot_list[[column]] = plot
   }
 }
 
 grid.arrange(grobs = plot_list, ncol = 2)
-data <- subset(data, select = -c(popularity_bins))
+data = subset(data, select = -c(popularity_bins))
 ```
 
 From the plots above we can see that across all the numerical predictors we have less variance and outliers as the popularity grows. They all stabilize around some range in the higher bins.
+This is worrying in terms of the constant variance assumption, but we hope the transformations will help mitigate that.
 
 We can see a weak positive trend in the danceability, which resembles the one of the valence. This means that the popular songs tend to be happier and more danceable.
 
@@ -317,10 +318,10 @@ Finally, the chance of a long song to be popular is very low as most of the long
 Now let's take a look at the impact of the categorical predictors. We start with the genre, and since it has many values and plotting would be difficult, what we can do is check the genres with the best and worst mean popularity.
 
 ```{r}
-mean_popularity_by_genre <- aggregate(popularity ~ genre, data, mean)
+mean_popularity_by_genre = aggregate(popularity ~ genre, data, mean)
 
-best_mean_popularity_by_genre <- mean_popularity_by_genre[order(-mean_popularity_by_genre$popularity), ]
-worst_mean_popularity_by_genre <- mean_popularity_by_genre[order(mean_popularity_by_genre$popularity), ]
+best_mean_popularity_by_genre = mean_popularity_by_genre[order(-mean_popularity_by_genre$popularity), ]
+worst_mean_popularity_by_genre = mean_popularity_by_genre[order(mean_popularity_by_genre$popularity), ]
 ```
 
 ```{r}
@@ -336,7 +337,7 @@ As expected, the genre greatly impacts the popularity. There is a huge differenc
 The only issue with the genre is that there are two many of them, with 82 values. That could be a problem if we decide to interact it with some other variables, which could happen since different genres might have different recipes for success. What we can do is create another variable called "upper_genre" which will be a mapping of the current genres to a higher level genre. We will create the mapping ourselves by carefully listening, researching and examining the current genres and categorizing them into upper genres. We will use the upper genre with caution.
 
 ```{r, warning=FALSE}
-genre_mapping <- list(
+genre_mapping = list(
   "rock" = c("alt-rock", "garage", "hard-rock", "psych-rock", "rock", "rock-n-roll"),
   "metal" = c("black-metal", "death-metal", "emo", "goth", "grindcore", "hardcore", "metal", "metalcore", "heavy-metal"),
   "electronic" = c("ambient", "breakbeat", "chicago-house", "dance", "dancehall", "deep-house", "detroit-techno",
@@ -360,7 +361,7 @@ genre_mapping <- list(
   "other" = c("comedy", "gospel", "romance", "show-tunes", "sleep", "groove")
 )
 
-map_genre <- function(genre) {
+map_genre = function(genre) {
   for (key in names(genre_mapping)) {
     if (genre %in% unlist(genre_mapping[[key]])) {
       return(key)
@@ -368,7 +369,7 @@ map_genre <- function(genre) {
   }
 }
 
-data$upper_genre <- sapply(data$genre, map_genre)
+data$upper_genre = sapply(data$genre, map_genre)
 quantile_data$upper_genre = data$upper_genre
 ```
 
@@ -376,10 +377,10 @@ While handling and categorizing the genres we noticed some inconsistencies with 
 Before proceeding let's see the average popularity of the new upper genres.
 
 ```{r}
-mean_popularity_by_upper_genre <- aggregate(popularity ~ upper_genre, data, mean)
+mean_popularity_by_upper_genre = aggregate(popularity ~ upper_genre, data, mean)
 
-best_mean_popularity_by_upper_genre <- mean_popularity_by_upper_genre[order(-mean_popularity_by_upper_genre$popularity), ]
-worst_mean_popularity_by_upper_genre <- mean_popularity_by_upper_genre[order(mean_popularity_by_upper_genre$popularity), ]
+best_mean_popularity_by_upper_genre = mean_popularity_by_upper_genre[order(-mean_popularity_by_upper_genre$popularity), ]
+worst_mean_popularity_by_upper_genre = mean_popularity_by_upper_genre[order(mean_popularity_by_upper_genre$popularity), ]
 ```
 
 ```{r}
@@ -393,8 +394,8 @@ print(head(worst_mean_popularity_by_upper_genre, 10))
 Now we can look at the year variable.
 
 ```{r, fig.width=25, fig.height=6}
-mean_popularity_by_year <- aggregate(data$popularity, by = list(year = data$year), mean)
-mean_popularity_by_year <- reshape2::melt(mean_popularity_by_year, id.vars = "year")
+mean_popularity_by_year = aggregate(data$popularity, by = list(year = data$year), mean)
+mean_popularity_by_year = reshape2::melt(mean_popularity_by_year, id.vars = "year")
 
 ggplot(mean_popularity_by_year, aes(x = year, y = value, group = variable, color = variable)) +
   geom_line() +
@@ -413,9 +414,9 @@ In order to be able to explain the model but also utilize the year in our predic
 Despite all that, we are still curious to see the variation in the characteristics of songs across different years, and see what features of songs from different years contribute to its popularity right now. Let's see the mean of each variable as a function of the year, and also a plot of correlation with the popularity by year.
 
 ```{r, fig.width=25, fig.height=8}
-mean_data <- aggregate(data[, num_vars], by = list(year = data$year), mean)
+mean_data = aggregate(data[, num_vars], by = list(year = data$year), mean)
 mean_data = subset(mean_data, select = -c(popularity, tempo, duration_m, loudness))
-mean_melted <- reshape2::melt(mean_data, id.vars = "year")
+mean_melted = reshape2::melt(mean_data, id.vars = "year")
 
 ggplot(mean_melted, aes(x = year, y = value, group = variable, color = variable)) +
   geom_line() +
@@ -428,21 +429,21 @@ ggplot(mean_melted, aes(x = year, y = value, group = variable, color = variable)
 ```
 
 ```{r, fig.width=25, fig.height=8}
-cor_data <- data.frame(year = unique(data$year))
-cor_data$year <- as.numeric(as.character(cor_data$year))
+cor_data = data.frame(year = unique(data$year))
+cor_data$year = as.numeric(as.character(cor_data$year))
 
 for (var in names(num_vars[num_vars])) {
   if (var != "popularity"){
-    cor_values <- sapply(unique(data$year), function(y) {
-      subset_data <- subset(data, as.numeric(as.character(year)) == y)
+    cor_values = sapply(unique(data$year), function(y) {
+      subset_data = subset(data, as.numeric(as.character(year)) == y)
       cor(subset_data[[var]], subset_data$popularity)
     })
     
-    cor_data[var] <- cor_values
+    cor_data[var] = cor_values
   }
 }
 
-cor_melted <- reshape2::melt(cor_data, id.vars = "year")
+cor_melted = reshape2::melt(cor_data, id.vars = "year")
 
 ggplot(cor_melted, aes(x = year, y = value, group = variable, color = variable)) +
   geom_line() +
@@ -482,9 +483,9 @@ grid.arrange(ts_pop, key_pop, mode_pop, ncol = 1)
 There are no significant changes in the distribution of the popularity between different values of time signature, key or mode. Maybe we should check the combination of key and mode since they often touch similar characteristics of a song.
 
 ```{r, fig.width=16, fig.height=5}
-data$key_mode_combination <- interaction(data$mode, data$key)
+data$key_mode_combination = interaction(data$mode, data$key)
 
-combined_plot <- ggplot(data, aes(x = key_mode_combination, y = popularity, fill = mode)) +
+combined_plot = ggplot(data, aes(x = key_mode_combination, y = popularity, fill = mode)) +
   geom_boxplot() +
   theme(legend.position = "none") +
   labs(x = "Key and Mode", y = "Popularity", title = "Distribution of Popularity by Key and Mode") +
@@ -493,7 +494,7 @@ combined_plot <- ggplot(data, aes(x = key_mode_combination, y = popularity, fill
 
 print(combined_plot)
 
-data <- subset(data, select = -c(key_mode_combination))
+data = subset(data, select = -c(key_mode_combination))
 ```
 
 Still doesn't look significant for the popularity. In terms of the mean and even the outliers the boxplots don't look too different.
@@ -526,17 +527,16 @@ Now we can proceed and build some models.
 ### Define Test Criteria
 
 Before we start fitting some models, we split the data into test and train data.
-This helps us evaluating the models, especially towards overfitting. 
+This helps us evaluating the models, also towards overfitting. 
 The chosen ratio is 70% train data and 30% test data. 
-We do this for both the quantile transformed and the not transformed data set.
-
+We do this for both the quantile transformed data and the original data set.
 
 ```{r}
 set.seed(42)
 ratio = 0.7
 
 # normal data set
-data_fit <- subset(data, select = -c(artist_name, track_name))
+data_fit = subset(data, select = -c(artist_name, track_name))
 
 sample_size = floor(ratio * nrow(data_fit))
 data_idx = sample(nrow(data_fit), sample_size)
@@ -544,7 +544,7 @@ data_trn = data_fit[data_idx, ]
 data_tst = data_fit[-data_idx, ]
 
 # quantile normalized data set
-quantile_data_fit <- subset(quantile_data, select = -c(artist_name, track_name))
+quantile_data_fit = subset(quantile_data, select = -c(artist_name, track_name))
 
 sample_size = floor(ratio * nrow(quantile_data_fit))
 quantile_data_idx = sample(nrow(quantile_data_fit), sample_size)
@@ -552,48 +552,48 @@ quantile_data_trn = quantile_data_fit[quantile_data_idx,]
 quantile_data_tst = quantile_data_fit[-quantile_data_idx, ]
 ```
 
-
 To make the evaluation of the fitted models easier, we define a function which is calculating the most important tests for us.
-The funtion has the model and the test dataset as parameter defined.
-The first test is the Shapiro-Wilk test. 
+The function receives the model and the test dataset as parameters.
+The first test is the Shapiro-Wilk test of normality. 
 Note that the shaprio.test function in R is limited to accept max. 5000 residuals. Since the original dataset contains 1 million tracks, these are too many residuals even after splitting the dataset into test and train. 
 As a workaround, a random sample size of 5000 residuals is picked.
 This makes the result of that test somewhat unreliable, since it can get a biased sample. But the value should still give us an idea how good or bad the model might be. 
 
-Further test criteria are the Breusch-Pagan test for checking the constant variance assumption, loocv_rmse for cross validation the model and the rsme calcualted from the give test data.
-The models R-Squared and Adjusted R-Squared values are returned, too.
-
+Further test criteria are the Breusch-Pagan test for checking the constant variance assumption, loocv_rmse for cross validation the model and 
+also RMSE and MAE calculated from the given test data.
+The models Adjusted R-Squared values are returned too.
 
 ```{r}
 check_model = function(model, test_data){
   model_info = summary(model)
-  
   set.seed(42)
+  
   # sample for shapiro
   sample_idx = sample(length(resid(model)), 5000)
   residuals_sample = resid(model)[sample_idx]
   
   # shapiro
-  shapiro =  shapiro.test(residuals_sample)$p.value
+  shapiro_p_value =  shapiro.test(residuals_sample)$p.value
   
   # bp test
-  bptest = bptest(model)$p.value
+  bptest_p_value = bptest(model)$p.value
   
   # loocv_rmse
   loocv_rmse = sqrt(mean((resid(model) / (1 - hatvalues(model))) ^ 2))
 
-  # rsme using the test data
-  predictions <- predict(model, newdata = test_data)
-  rsme_test <- sqrt(mean((test_data$popularity - predictions)^2))
+  # rsme and mae using the test data
+  predictions = predict(model, newdata = test_data)
+  rsme_test = sqrt(mean((test_data$popularity - predictions)^2))
+  mae_test = mean(abs(test_data$popularity - predictions))
 
   # Creating a data frame to store the results
   results = data.frame(
-    r_squared = model_info$r.squared,
     adjusted_r_squared = model_info$adj.r.squared,
     rsme_test = rsme_test,
+    mae_test = mae_test,
     loocv_rmse = loocv_rmse,
-    shapiro = shapiro,
-    bptest = bptest
+    shapiro = shapiro_p_value,
+    bptest = bptest_p_value
   )
 
   results
@@ -603,38 +603,38 @@ check_model = function(model, test_data){
 Further a function for plotting the Fitted vs Residuals Plot and the Q-Q Plot is defined.
 
 ```{r}
-# TODO: Pass main and labels to function.
-plot_model <- function(model) {
+plot_model = function(model) {
   # Fitted vs Residuals Plot
   plot(fitted(model), resid(model), col = "grey", pch = 20,
-     xlab = "Fitted", ylab = "Residuals", main = "Data from Model 3")
+     xlab = "Fitted", ylab = "Residuals", main = "Fitted vs Residuals Plot")
   abline(h = 0, col = "darkorange", lwd = 2)
   
   # Q-Q Plot
-  qqnorm(resid(model), main = "Normal Q-Q Plot", col = "darkgrey")
+  qqnorm(resid(model), main = "Q-Q Plot", col = "darkgrey")
   qqline(resid(model), col = "dodgerblue", lwd = 2)
 }
-
 ```
 
 
 ### Full Additive Model
 
 Now the data is prepared and the tests are defined. We can start fitting.
-The first model we build is a full additive one including all predictors. One exception is on the upper genre, since this should be a replacement for gerne in a better explainable and useful model. And we choose the untransformed data set. This should give us a base to how much we need to do improving the model
+The first model we build is a full additive one including all predictors. One exception is on the upper genre, since this should be a replacement for genre in a better explainable and useful model. And we choose the non transformed data set. This should give us a base to how much we need to do improving the model
 
 ```{r}
 model_add_full = lm(popularity ~ . -upper_genre, data = data_trn)
 ```
 
-Let's run the tests and see how good the model performs.
+Let's run the tests and see how well the model performs.
 
 ```{r}
 summary(model_add_full)
 ```
 
 ```{r}
-(model_add_full_check <- check_model(model_add_full, data_tst))
+model_add_full_check = check_model(model_add_full, data_tst)
+rownames(model_add_full_check) = c("Fully Additive No Transformations")
+model_add_full_check
 ```
 
 
@@ -643,35 +643,31 @@ plot_model(model_add_full)
 ```
 
 On the first look, the model itself looks significant. Nearly all variables are significant, only a few categorical predictors like genredisco or key9 are not.
-However, it is not suitable for prediction. The r_squared are a bit too low and rsme value are too high. 
-Further, both the constant variance assumption and the normal distribution assumptions are highly suspicious. 
-We need to adjust our model further.
+However, both the constant variance assumption and the normal distribution assumptions are highly suspicious. 
 
+We need to adjust our model further. As we suspected before, using transformations and avoiding collinear predictors is necessary.
 
 ### Data Transformation
 
 The next step is to focus on the very suspect normality and constant variance assumptions of the full additive model. 
-The first thing changed was using transformed data. Box-Cox transformation led to worse results than using normalized quantiles. Hence we did not investigate any further in that direction. 
-Additional some transformations were applied on both response and predictors. Options were square root, polynoms, log, exp and inverse. 
-The biggest affect had using square root on the response. Transforming the predictors did not had much effect. Valence and Loudness could be improved using exp. But using both together made the model worse. So we choose loudness here. Transforming duration_m with exp helped, too. 
-
-
+The first thing changed was using transformed data. Box-Cox transformation led to worse results than using quantiles. Hence we did not investigate any further in that direction. 
+Additional transformations were applied on some predictors. Options were square root, polynomials, log, exp and inverse. 
+Valence and Loudness were improved using exp, but using both made the model worse so we chose loudness here. We found transforming duration_m with exp helpful too. 
 
 ```{r}
-formula = "sqrt(popularity)~danceability+energy+exp(loudness)+speechiness+acousticness+instrumentalness+liveness+valence+tempo+exp(duration_m)+key+mode+time_signature+genre"
+formula = "popularity~danceability+energy+exp(loudness)+speechiness+acousticness+instrumentalness+liveness+valence+tempo+exp(duration_m)+key+mode+time_signature+genre"
 model_add_quant_trans = lm(formula, data = quantile_data_trn)
 ```
-
 
 ```{r}
 summary(model_add_quant_trans)
 ```
 
-
 ```{r}
-(model_add_quant_trans_check <- check_model(model_add_quant_trans, quantile_data_tst))
+model_add_quant_trans_check = check_model(model_add_quant_trans, quantile_data_tst)
+rownames(model_add_quant_trans_check) = c("Additive Qunatile Normalized")
+model_add_quant_trans_check
 ```
-
 
 ```{r}
 plot_model(model_add_quant_trans)
@@ -679,11 +675,9 @@ plot_model(model_add_quant_trans)
 
 This model looks better regarding normal the normal assumption. The Q-Q plot is not perfect but way better. The Shapiro-Wilk test failed to reject for sigma 0.05. But as said this might be biased due to the sample size.
 No visible improvements could be achieved towards the constant variance assumption. It is still bad. 
-The RSME stayed the same, but LOOCV RMSE looks way better. 
+The RMSE stayed the same, but LOOCV RMSE looks way better. 
 On contrary, the Adjusted R Squared got worse.
 Trying to reduce the predictors with the help of AIC or BIC in a backward search did not work out. The predictor number stayed the same.
-
-
 
 ### Collinearity
 
@@ -691,48 +685,47 @@ As a next step, we check for collinearity issues.
 We will use the transformed model and calculate the vif. We define vif values higher than 5 as problematic.
 
 ```{r}
-formula = "sqrt(popularity)~danceability+energy+exp(loudness)+speechiness+acousticness+instrumentalness+liveness+valence+tempo+exp(duration_m)+key+mode+time_signature+genre"
+formula = "popularity~danceability+energy+exp(loudness)+speechiness+acousticness+instrumentalness+liveness+valence+tempo+exp(duration_m)+key+mode+time_signature+genre"
 model_add_quant_vif = lm(formula, data = quantile_data_trn)
 ```
 
-
 ```{r}
-vif_values <- faraway::vif(model_add_quant_vif)
-(problematic_variables <- names(vif_values[vif_values > 5]))
-
+vif_values = faraway::vif(model_add_quant_vif)
+(problematic_variables = names(vif_values[vif_values > 5]))
 ```
 
 We see that the factor variable time_signature has vif values above the threshold of 5. This is problematic, it indicates that those variables are contributing to multicollinearity in our regression model. Therefore we remove them and do the test again.
 
 ```{r}
-formula = "sqrt(popularity)~danceability+energy+exp(loudness)+speechiness+acousticness+instrumentalness+liveness+valence+tempo+exp(duration_m)+key+mode+genre"
+formula = "popularity~danceability+energy+exp(loudness)+speechiness+acousticness+instrumentalness+liveness+valence+tempo+exp(duration_m)+key+mode+genre"
 model_add_quant_no_vif = lm(formula, data = quantile_data_trn)
 ```
 
 ```{r}
-vif_values <- faraway::vif(model_add_quant_no_vif)
-(problematic_variables <- names(vif_values[vif_values > 5]))
+vif_values = faraway::vif(model_add_quant_no_vif)
+(problematic_variables = names(vif_values[vif_values > 5]))
 ```
 
 ```{r}
-(model_add_quant_no_vif_check <- check_model(model_add_quant_no_vif, quantile_data_tst))
+model_add_quant_no_vif_check = check_model(model_add_quant_no_vif, quantile_data_tst)
+rownames(model_add_quant_no_vif_check) = c("Additive Qunatile Normalized No VIF")
+model_add_quant_no_vif_check
 ```
 
 ```{r}
 plot_model(model_add_quant_no_vif)
 ```
 
-Now all predictors are below the threshold. Further no changes towards the constant variance and normality assumptions. The means we got a simpler and better explainable model with likely the same quality in terms of prediction.
-
+Now all predictors are below the threshold. No further changes are required towards the constant variance and normality assumptions. The means we got a simpler and better explainable model with likely the same quality in terms of prediction.
 
 ### Interaction
 
-In the data analysis we stated, that interactions might be helpful to better explain the popularity. 
-So in this step we will evaluate that. 
+In the data analysis we stated that interactions might be helpful to better explain the popularity. 
+In this step we will evaluate that. 
 Some interactions were added to the previous model, to see if we can get a better model.
 
 ```{r}
-formula = "sqrt(popularity)~danceability+energy+exp(loudness)+speechiness+acousticness+instrumentalness+liveness+valence+tempo+exp(duration_m)+key+mode+time_signature+genre+danceability:genre+speechiness:liveness+valence:tempo+energy:tempo+acousticness:instrumentalness+danceability:liveness"
+formula = "popularity~danceability+energy+exp(loudness)+speechiness+acousticness+instrumentalness+liveness+valence+tempo+exp(duration_m)+key+mode+time_signature+genre+danceability:genre+speechiness:liveness+valence:tempo+energy:tempo+acousticness:instrumentalness+danceability:liveness"
 model_int_quant_trans = lm(formula, data = quantile_data_trn)
 ```
 
@@ -742,7 +735,9 @@ summary(model_int_quant_trans)
 ```
 
 ```{r}
-(model_int_quant_trans_check = check_model(model_int_quant_trans, quantile_data_tst))
+model_int_quant_trans_check = check_model(model_int_quant_trans, quantile_data_tst)
+rownames(model_int_quant_trans_check) = c("Interaction Qunatile Normalized")
+model_int_quant_trans_check
 ```
 
 
@@ -750,51 +745,60 @@ summary(model_int_quant_trans)
 plot_model(model_int_quant_trans)
 ```
 
-The model performs slighly better in terms of meeting the normal assumption.
-The other test values do not vary. Therefore we get a slightly better model on the cost of explainability. 
+The model performs slightly better in terms of meeting the normal assumption.
+The other test values do not vary. Therefore we get a slightly better model for the cost of explainability.
 
+### Explainability First
 
-
-### More Explainability
-
-Let's step back and use a more simpler model, which might be more useful for understanding the connections.
-It's important, that year is excluded. Further, we would like to use upper_genre instead of genre.
-The transformations are kept. 
+Our goal is to achieve a simpler healthy model that will help us in explaining the popularity better while getting decent RMSE and MAE on the test set.
+Previously we suspected that the genre is produced by an algorithm that is assessing a song using some features we see here, so we will not use any genre predictor as it might be confusing.
+Also, we saw that the key, mode and time signature are not changing the average popularity so much so we will try to drop them as well.
+Finally, we will handpick a few predictors that were the most promising and not correlated between them, and interact them with the year to create coefficients for each year.
 
 ```{r}
-formula = "sqrt(popularity)~danceability+energy+exp(loudness)+speechiness+acousticness+instrumentalness+liveness+valence+tempo+exp(duration_m)+key+mode+upper_genre"
-model_explain = lm(formula, data = quantile_data_trn)
+model_simple = lm(popularity ~ year * (danceability + acousticness + instrumentalness + speechiness + liveness + duration_m), data = quantile_data_trn)
 ```
 
 ```{r}
-summary(model_explain)
+summary(model_simple)
 ```
 
 ```{r}
-(model_explain_check <- check_model(model_explain, quantile_data_tst))
+model_simple_check = check_model(model_simple, quantile_data_tst)
+rownames(model_simple_check) = c("Explainable By Year")
+model_simple_check
 ```
 
 ```{r}
-plot_model(model_explain)
+plot_model(model_simple)
 ```
-
-The results show, that the model gets measurable worse when replacing genre with upper gerne.
-The Normal Q-Q get more suspect, the test values get worse. Only the fitted vs residuals plot stays the same.
-
 
 # Results
 
-Combining the test results in one data frame
+In order to compare the different models diagnostics and performance, let's view them in a table.
+
 ```{r}
-check_results <- rbind(model_add_full_check, model_add_quant_trans_check, model_add_quant_no_vif_check, model_int_quant_trans_check, model_explain_check)
+check_results = rbind(model_add_full_check, model_add_quant_trans_check, model_add_quant_no_vif_check, model_int_quant_trans_check, model_simple_check)
+kable_table = kable(check_results, format = "html", caption = "Model Test Results")
+kable_table
 ```
 
-Showing the results as table
+One observation to make is that all the models failed the Shapiro-Wilk and Breusch-Pagan tests. Despite our efforts and experiments, the data is very challenging. However, we can see in the Q-Q and fitted vs. residuals plots that the different models do differ in their violations of the assumptions, which we will take into account.
+
+All the models have their advantages and disadvantages, and we need to keep our goal in mind. In the first additive model we see good predictive results but the diagnostic plots are very bad. The model uses variables with collinearity and no transformations. The next two models tackle these issues one by one but as in the case of the additive model, they are probably overfitting based on the genre. We can see that the coefficients of the genres are higher than all, and they don't help us in the quest of explainability. Writing a pop song as a conclusion doesn't help much.
+We also considered interactions between some numerical variables but we can see that they don't contribute much to the model's predictive abilities while significantly making it non-interpretable. In the interaction model we tried using the upper genre that we introduced earlier but it raised the same issues of overfitting and no explainability that the genre did.
+
+This leaves us with the final model, the one that interacts the year with some numerical variables. We picked the numerical variables based on the data analysis we did earlier, while focusing on the algorithm-generated ones to avoid collinearity issues by using loudness and tempo. Using this model let's us see how different predictors affect the popularity and also check this for every year to see the trends in the impact of each predictor. Excluding any genre variable removes the bias the model could have towards specific genres. In addition, we can see that the diagnostic plots of this model look better than the ones of the other models with the residuals centered around 0 especially for higher popularity. This makes sense due to the large amount of songs having low popularity for different reasons.
+
+Let's use this model and look at the results and more specifically, the coefficients.
+
 ```{r}
-kable_table <- kable(check_results, format = "html", caption = "Model Test Results")
+
 ```
 
 # Discussion
+
+
 
 # Appendix
 
