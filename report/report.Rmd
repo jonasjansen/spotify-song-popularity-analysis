@@ -1,5 +1,5 @@
 ---
-title: "Predicting Song Popularity"
+title: "Explaining Song Popularity"
 subtitle: "STAT 420, Summer 2023, UIUC - Final Data Project"
 author: "Soumya Nanda, Jonas Jansen, Noam Isachar"
 output:
@@ -231,6 +231,7 @@ boxcox_data = data.frame(
 )
 boxcox_data = boxcox_data[names(data)]
 ```
+
 ```{r}
 boxcox_num_data = boxcox_data[, num_vars]
 boxcox_num_data_sample = boxcox_num_data[sample(nrow(boxcox_num_data), 10000), ]
@@ -242,6 +243,7 @@ boxcox_pair_plot_sample = ggpairs(boxcox_num_data_sample, upper = list(continuou
         axis.ticks=element_blank(),
         text = element_text(size = 30))
 ```
+
 ```{r, warning = FALSE, fig.width=25, fig.height=15}
 print(boxcox_pair_plot_sample, progress = F)
 ```
@@ -270,6 +272,7 @@ quantile_pair_plot_sample = ggpairs(quantile_num_data_sample, upper = list(conti
         axis.ticks=element_blank(),
         text = element_text(size = 30))
 ```
+
 ```{r, warning = FALSE, fig.width=25, fig.height=15}
 print(quantile_pair_plot_sample, progress = F)
 ```
@@ -298,8 +301,7 @@ grid.arrange(grobs = plot_list, ncol = 2)
 data = subset(data, select = -c(popularity_bins))
 ```
 
-From the plots above we can see that across all the numerical predictors we have less variance and outliers as the popularity grows. They all stabilize around some range in the higher bins.
-This is worrying in terms of the constant variance assumption, but we hope the transformations will help mitigate that.
+From the plots above we can see that across all the numerical predictors we have less variance and outliers as the popularity grows. They all stabilize around some range in the higher bins. This is worrying in terms of the constant variance assumption, but we hope the transformations will help mitigate that.
 
 We can see a weak positive trend in the danceability, which resembles the one of the valence. This means that the popular songs tend to be happier and more danceable.
 
@@ -373,8 +375,7 @@ data$upper_genre = sapply(data$genre, map_genre)
 quantile_data$upper_genre = data$upper_genre
 ```
 
-While handling and categorizing the genres we noticed some inconsistencies with the genre values across different songs. Some completely not related songs were wrongly categorized to the same genre, which makes sense since the genre is an algorithm-based variable. This leads us to think that we want to try a model without considering the genre, not even in the reduced form.
-Before proceeding let's see the average popularity of the new upper genres.
+While handling and categorizing the genres we noticed some inconsistencies with the genre values across different songs. Some completely not related songs were wrongly categorized to the same genre, which makes sense since the genre is an algorithm-based variable. This leads us to think that we want to try a model without considering the genre, not even in the reduced form. Before proceeding let's see the average popularity of the new upper genres.
 
 ```{r}
 mean_popularity_by_upper_genre = aggregate(popularity ~ upper_genre, data, mean)
@@ -505,7 +506,7 @@ There is little chance that we will need the time signature, key or mode in the 
 
 Before building the model, we can lay out a few conclusions from the sections above that will help us in building a better model and more importantly, write a hit song!
 
--   The distribution of the popularity variable is left-skewed, indicating that most songs have relatively low popularity scores, with only a few reaching higher scores. To tackle that in our model we might want to try transforming the response, together with some other numerical variables that are skewed. After using the Box-Cox method we retrieved the optimal lambdas for each variables and implemented it in a dedicated dataframe. The result was still unsatisfactory so we had to use a more robust way of normalizing data and forcing it into a normal distribution, such as quantile normalization. The normalized data was saved into a dataframe which we are likely to use when fitting models. 
+-   The distribution of the popularity variable is left-skewed, indicating that most songs have relatively low popularity scores, with only a few reaching higher scores. To tackle that in our model we might want to try transforming the response, together with some other numerical variables that are skewed. After using the Box-Cox method we retrieved the optimal lambdas for each variables and implemented it in a dedicated dataframe. The result was still unsatisfactory so we had to use a more robust way of normalizing data and forcing it into a normal distribution, such as quantile normalization. The normalized data was saved into a dataframe which we are likely to use when fitting models.
 
 -   There is no single variable that is strongly correlated with the popularity. This means that a combination of factors is likely to influence the popularity of a song, and that we will need to try a few interactions.
 
@@ -521,15 +522,11 @@ Before building the model, we can lay out a few conclusions from the sections ab
 
 Now we can proceed and build some models.
 
-
 ## Model Building
 
 ### Define Test Criteria
 
-Before we start fitting some models, we split the data into test and train data.
-This helps us evaluating the models, also towards overfitting. 
-The chosen ratio is 70% train data and 30% test data. 
-We do this for both the quantile transformed data and the original data set.
+Before we start fitting some models, we split the data into test and train data. This helps us evaluating the models, also towards overfitting. The chosen ratio is 70% train data and 30% test data. We do this for both the quantile transformed data and the original data set.
 
 ```{r}
 set.seed(42)
@@ -552,16 +549,9 @@ quantile_data_trn = quantile_data_fit[quantile_data_idx,]
 quantile_data_tst = quantile_data_fit[-quantile_data_idx, ]
 ```
 
-To make the evaluation of the fitted models easier, we define a function which is calculating the most important tests for us.
-The function receives the model and the test dataset as parameters.
-The first test is the Shapiro-Wilk test of normality. 
-Note that the shaprio.test function in R is limited to accept max. 5000 residuals. Since the original dataset contains 1 million tracks, these are too many residuals even after splitting the dataset into test and train. 
-As a workaround, a random sample size of 5000 residuals is picked.
-This makes the result of that test somewhat unreliable, since it can get a biased sample. But the value should still give us an idea how good or bad the model might be. 
+To make the evaluation of the fitted models easier, we define a function which is calculating the most important tests for us. The function receives the model and the test dataset as parameters. The first test is the Shapiro-Wilk test of normality. Note that the shaprio.test function in R is limited to accept max. 5000 residuals. Since the original dataset contains 1 million tracks, these are too many residuals even after splitting the dataset into test and train. As a workaround, a random sample size of 5000 residuals is picked. This makes the result of that test somewhat unreliable, since it can get a biased sample. But the value should still give us an idea how good or bad the model might be.
 
-Further test criteria are the Breusch-Pagan test for checking the constant variance assumption, loocv_rmse for cross validation the model and 
-also RMSE and MAE calculated from the given test data.
-The models Adjusted R-Squared values are returned too.
+Further test criteria are the Breusch-Pagan test for checking the constant variance assumption, loocv_rmse for cross validation the model and also RMSE and MAE calculated from the given test data. The models Adjusted R-Squared values are returned too.
 
 ```{r}
 check_model = function(model, test_data){
@@ -615,11 +605,9 @@ plot_model = function(model) {
 }
 ```
 
-
 ### Full Additive Model
 
-Now the data is prepared and the tests are defined. We can start fitting.
-The first model we build is a full additive one including all predictors. One exception is on the upper genre, since this should be a replacement for genre in a better explainable and useful model. And we choose the non transformed data set. This should give us a base to how much we need to do improving the model
+Now the data is prepared and the tests are defined. We can start fitting. The first model we build is a full additive one including all predictors. One exception is on the upper genre, since this should be a replacement for genre in a better explainable and useful model. And we choose the non transformed data set. This should give us a base to how much we need to do improving the model
 
 ```{r}
 model_add_full = lm(popularity ~ . -upper_genre, data = data_trn)
@@ -628,39 +616,26 @@ model_add_full = lm(popularity ~ . -upper_genre, data = data_trn)
 Let's run the tests and see how well the model performs.
 
 ```{r}
-summary(model_add_full)
-```
-
-```{r}
 model_add_full_check = check_model(model_add_full, data_tst)
 rownames(model_add_full_check) = c("Fully Additive No Transformations")
 model_add_full_check
 ```
 
-
 ```{r}
 plot_model(model_add_full)
 ```
 
-On the first look, the model itself looks significant. Nearly all variables are significant, only a few categorical predictors like genredisco or key9 are not.
-However, both the constant variance assumption and the normal distribution assumptions are highly suspicious. 
+On the first look, the model itself looks significant. Nearly all variables are significant, only a few categorical predictors like genredisco or key9 are not. However, both the constant variance assumption and the normal distribution assumptions are highly suspicious.
 
 We need to adjust our model further. As we suspected before, using transformations and avoiding collinear predictors is necessary.
 
 ### Data Transformation
 
-The next step is to focus on the very suspect normality and constant variance assumptions of the full additive model. 
-The first thing changed was using transformed data. Box-Cox transformation led to worse results than using quantiles. Hence we did not investigate any further in that direction. 
-Additional transformations were applied on some predictors. Options were square root, polynomials, log, exp and inverse. 
-Valence and Loudness were improved using exp, but using both made the model worse so we chose loudness here. We found transforming duration_m with exp helpful too. 
+The next step is to focus on the very suspect normality and constant variance assumptions of the full additive model. The first thing changed was using transformed data. Box-Cox transformation led to worse results than using quantiles. Hence we did not investigate any further in that direction. Additional transformations were applied on some predictors. Options were square root, polynomials, log, exp and inverse. Valence and Loudness were improved using exp, but using both made the model worse so we chose loudness here. We found transforming duration_m with exp helpful too.
 
 ```{r}
 formula = "popularity~danceability+energy+exp(loudness)+speechiness+acousticness+instrumentalness+liveness+valence+tempo+exp(duration_m)+key+mode+time_signature+genre"
 model_add_quant_trans = lm(formula, data = quantile_data_trn)
-```
-
-```{r}
-summary(model_add_quant_trans)
 ```
 
 ```{r}
@@ -673,16 +648,11 @@ model_add_quant_trans_check
 plot_model(model_add_quant_trans)
 ```
 
-This model looks better regarding normal the normal assumption. The Q-Q plot is not perfect but way better. The Shapiro-Wilk test failed to reject for sigma 0.05. But as said this might be biased due to the sample size.
-No visible improvements could be achieved towards the constant variance assumption. It is still bad. 
-The RMSE stayed the same, but LOOCV RMSE looks way better. 
-On contrary, the Adjusted R Squared got worse.
-Trying to reduce the predictors with the help of AIC or BIC in a backward search did not work out. The predictor number stayed the same.
+This model looks better regarding normal the normal assumption. The Q-Q plot is not perfect but way better. The Shapiro-Wilk test failed to reject for sigma 0.05. But as said this might be biased due to the sample size. No visible improvements could be achieved towards the constant variance assumption. It is still bad. The RMSE stayed the same, but LOOCV RMSE looks way better. On contrary, the Adjusted R Squared got worse. Trying to reduce the predictors with the help of AIC or BIC in a backward search did not work out. The predictor number stayed the same.
 
 ### Collinearity
 
-As a next step, we check for collinearity issues. 
-We will use the transformed model and calculate the vif. We define vif values higher than 5 as problematic.
+As a next step, we check for collinearity issues. We will use the transformed model and calculate the vif. We define vif values higher than 5 as problematic.
 
 ```{r}
 formula = "popularity~danceability+energy+exp(loudness)+speechiness+acousticness+instrumentalness+liveness+valence+tempo+exp(duration_m)+key+mode+time_signature+genre"
@@ -720,18 +690,11 @@ Now all predictors are below the threshold. No further changes are required towa
 
 ### Interaction
 
-In the data analysis we stated that interactions might be helpful to better explain the popularity. 
-In this step we will evaluate that. 
-Some interactions were added to the previous model, to see if we can get a better model.
+In the data analysis we stated that interactions might be helpful to better explain the popularity. In this step we will evaluate that. Some interactions were added to the previous model, to see if we can get a better model.
 
 ```{r}
 formula = "popularity~danceability+energy+exp(loudness)+speechiness+acousticness+instrumentalness+liveness+valence+tempo+exp(duration_m)+key+mode+time_signature+genre+danceability:genre+speechiness:liveness+valence:tempo+energy:tempo+acousticness:instrumentalness+danceability:liveness"
 model_int_quant_trans = lm(formula, data = quantile_data_trn)
-```
-
-
-```{r}
-summary(model_int_quant_trans)
 ```
 
 ```{r}
@@ -740,37 +703,29 @@ rownames(model_int_quant_trans_check) = c("Interaction Qunatile Normalized")
 model_int_quant_trans_check
 ```
 
-
 ```{r}
 plot_model(model_int_quant_trans)
 ```
 
-The model performs slightly better in terms of meeting the normal assumption.
-The other test values do not vary. Therefore we get a slightly better model for the cost of explainability.
+The model performs slightly better in terms of meeting the normal assumption. The other test values do not vary. Therefore we get a slightly better model for the cost of explainability.
 
-### Explainability First
+### Explainability
 
-Our goal is to achieve a simpler healthy model that will help us in explaining the popularity better while getting decent RMSE and MAE on the test set.
-Previously we suspected that the genre is produced by an algorithm that is assessing a song using some features we see here, so we will not use any genre predictor as it might be confusing.
-Also, we saw that the key, mode and time signature are not changing the average popularity so much so we will try to drop them as well.
-Finally, we will handpick a few predictors that were the most promising and not correlated between them, and interact them with the year to create coefficients for each year.
+Our goal is to achieve a simpler healthy model that will help us in explaining the popularity better while getting decent RMSE and MAE on the test set. Previously we suspected that the genre is produced by an algorithm that is assessing a song using some features we see here, so we will not use any genre predictor as it might be confusing. Also, we saw that the key, mode and time signature are not changing the average popularity so much so we will try to drop them as well. Finally, we will handpick a few predictors that were the most promising and not correlated between them, and interact them with the year to create coefficients for each year.
 
 ```{r}
-model_simple = lm(popularity ~ year * (danceability + acousticness + instrumentalness + speechiness + liveness + duration_m), data = quantile_data_trn)
+model_explain = lm(popularity ~ year * (danceability + acousticness + instrumentalness + speechiness + liveness + duration_m), 
+                   data = quantile_data_trn)
 ```
 
 ```{r}
-summary(model_simple)
+model_explain_check = check_model(model_explain, quantile_data_tst)
+rownames(model_explain_check) = c("Explainable By Year")
+model_explain_check
 ```
 
 ```{r}
-model_simple_check = check_model(model_simple, quantile_data_tst)
-rownames(model_simple_check) = c("Explainable By Year")
-model_simple_check
-```
-
-```{r}
-plot_model(model_simple)
+plot_model(model_explain)
 ```
 
 # Results
@@ -778,32 +733,103 @@ plot_model(model_simple)
 In order to compare the different models diagnostics and performance, let's view them in a table.
 
 ```{r}
-check_results = rbind(model_add_full_check, model_add_quant_trans_check, model_add_quant_no_vif_check, model_int_quant_trans_check, model_simple_check)
+check_results = rbind(model_add_full_check, model_add_quant_trans_check, model_add_quant_no_vif_check, model_int_quant_trans_check, model_explain_check)
 kable_table = kable(check_results, format = "html", caption = "Model Test Results")
 kable_table
 ```
 
 One observation to make is that all the models failed the Shapiro-Wilk and Breusch-Pagan tests. Despite our efforts and experiments, the data is very challenging. However, we can see in the Q-Q and fitted vs. residuals plots that the different models do differ in their violations of the assumptions, which we will take into account.
 
-All the models have their advantages and disadvantages, and we need to keep our goal in mind. In the first additive model we see good predictive results but the diagnostic plots are very bad. The model uses variables with collinearity and no transformations. The next two models tackle these issues one by one but as in the case of the additive model, they are probably overfitting based on the genre. We can see that the coefficients of the genres are higher than all, and they don't help us in the quest of explainability. Writing a pop song as a conclusion doesn't help much.
-We also considered interactions between some numerical variables but we can see that they don't contribute much to the model's predictive abilities while significantly making it non-interpretable. In the interaction model we tried using the upper genre that we introduced earlier but it raised the same issues of overfitting and no explainability that the genre did.
+All the models have their advantages and disadvantages, and we need to keep our goal in mind. In the first additive model we see good predictive results but the diagnostic plots are very bad. The model uses variables with collinearity and no transformations. The next two models tackle these issues one by one but as in the case of the additive model, they are probably overfitting based on the genre. We can see that the coefficients of the genres are higher than all, and they don't help us in the quest of explainability. Writing a pop song as a conclusion doesn't help much. We also considered interactions between some numerical variables but we can see that they don't contribute much to the model's predictive abilities while significantly making it non-interpretable. In the interaction model we tried using the upper genre that we introduced earlier but it raised the same issues of overfitting and no explainability that the genre did.
 
 This leaves us with the final model, the one that interacts the year with some numerical variables. We picked the numerical variables based on the data analysis we did earlier, while focusing on the algorithm-generated ones to avoid collinearity issues by using loudness and tempo. Using this model let's us see how different predictors affect the popularity and also check this for every year to see the trends in the impact of each predictor. Excluding any genre variable removes the bias the model could have towards specific genres. In addition, we can see that the diagnostic plots of this model look better than the ones of the other models with the residuals centered around 0 especially for higher popularity. This makes sense due to the large amount of songs having low popularity for different reasons.
 
-Let's use this model and look at the results and more specifically, the coefficients.
+We can visualize the predictions against the actual transformed values.
 
 ```{r}
+# Set the seed for reproducibility
+set.seed(15)
 
+# Sample 500 rows from quantile_data_tst
+sample <- quantile_data_tst[sample(nrow(quantile_data_tst), 200), ]
+
+# Make predictions using the model
+predictions <- predict(model_explain, newdata = sample)
+
+# Create a scatter plot
+plot(sample$popularity, predictions, xlab = "Actual Values", ylab = "Predictions",
+     main = "Test Sample Predictions vs. Actual Values", col = "black")
+
+# Add the linear line for the ideal fit (orange line)
+abline(a = 0, b = 1, col = "orange", lwd = 3)
+
+# Fit and add the linear line for the actual points (purple line)
+lm_fit <- lm(predictions ~ sample$popularity)
+abline(lm_fit, col = "purple", lwd = 3)
+
+# Add a legend
+legend("bottomright", legend = c("Ideal Linear Fit", "Actual Model Fit"),
+       col = c("orange", "purple"), lty = c("solid", "solid"), lwd = 2, cex = 0.8)
+
+```
+
+We don't have a perfect fit but according to us, considering the challenging and unmeasurable subject of prediction, these are sufficiently good predictions and they justify the explanations and conclusions we will make from this model.
+
+Let's use this model and look at the results and more specifically, the coefficients across the years.
+
+```{r}
+coefficients = model_explain$coefficients
+
+num_preds = c("danceability", "acousticness", "instrumentalness", "speechiness", "liveness", "duration_m")
+coefs_by_year = data.frame(matrix(nrow = length(num_preds), ncol = length(unique(data$year))))
+rownames(coefs_by_year) = num_preds
+colnames(coefs_by_year) = sort(unique(data$year))
+
+for (pred in num_preds) {
+  for (year in unique(data$year)) {
+    base_coef = coefficients[pred]
+    if (year == 2000) {
+      coefs_by_year[pred, year] = base_coef
+    }
+    else {
+      coefs_by_year[pred, year] = base_coef + coefficients[paste0("year", year, ":", pred)]
+    }
+  }
+}
+
+coefs_by_year
+```
+
+```{r, fig.width=25, fig.height=6}
+melted_coefs = reshape2::melt(t(coefs_by_year), variable.name = "year", value.name = "coef")
+ggplot(melted_coefs, aes(Var1, coef, group=factor(Var2), color = Var2)) +
+  geom_line() +
+  geom_point() +
+  labs(x = "Year", y = "Coefficient",
+       title = "Model Coefficients by Year") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        text = element_text(size = 22))
 ```
 
 # Discussion
 
+The final model is very useful to us, because it allows as to interpret the effect of each selected variable across the different years in the dataset. In addition to explaining a few coefficients and how they impact the popularity, we can look at each variable's changing impact across the past 24 years. This is the most explainability we could hope for when in the beginning of this report.
 
+Let's look at the plot above and draw some conclusions:
+
+-   Across the chart, the most significant variable is the danceability. If you want a song to really succeed this is the way to go. In addition to that, we even see an increase in the significance starting from 2012. Maybe this is because danceable songs became easier to make when home studios and equipment became better and more affordable, so they also had to bring something more to the table and improve the standard of danceable songs?
+
+-   Similarly to the danceability, acousticness positively affected the popularity with a trend starting around 2012, with the difference that the trend completely changed 2022. After 10 years of general increase in the positive impact on the popularity, acousticness now actually negatively impacts the popularity. Are we at the start of 10 bad years for acoustic songs?
+
+-   Liveness and speechiness are pretty stable around zero. That means that even though we thought before that a live song with speech in it will reduce the chance of the song becoming popular, we now see it won't. Maybe the previous insight was because of the small amount of songs with high values in these two variables, which made the average value of them low across popular songs. The truth is that the average liveness and speechiness of songs is low across all the levels of popularity, and now we certify that with the coefficients.
+
+-   Another variable which is pretty stable is the instrumentalness. It has a small but still negative coefficient across all the years. People like words to sing and remember from songs.
+
+-   The duration gained a negative momentum in 2015. Until then it was neutral, but since then shorter songs have a higher chance to become popular. This corresponds with a similar trends in other mediums such as videos, where short videos gained popularity in platforms like Vine and later on TikTok.
+
+If only we had two more variables, talent and luck, and we could explain 100% of the popularity...
 
 # Appendix
 
 The report was composed and written by Soumya Nanda, Jonas Jansen and Noam Isachar.
-
-
-
-
