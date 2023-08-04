@@ -3,10 +3,10 @@ title: "Explaining Song Popularity"
 subtitle: "STAT 420, Summer 2023, UIUC - Final Data Project"
 author: "Soumya Nanda, Jonas Jansen, Noam Isachar"
 output:
-  pdf_document: default
+  html_document:
   theme: readable
   toc: yes
-  html_document:
+  pdf_document: default
 urlcolor: cyan
 ---
 
@@ -280,7 +280,7 @@ Beautiful. The distributions of the variables are not skewed and the scatterplot
 
 One more interesting analysis to try is to bin the popularity into 10 chunks and see the difference in each variable across the different bins of popularity.
 
-```{r, fig.width=20, fig.height=15}
+```{r, fig.width=20, fig.height=20}
 data$popularity_bins = cut(data$popularity, breaks = 10)
 plot_list = list()
 
@@ -393,7 +393,7 @@ print(head(worst_mean_popularity_by_upper_genre, 10))
 
 Now we can look at the year variable.
 
-```{r, fig.width=25, fig.height=6}
+```{r, fig.width=25, fig.height=8}
 mean_popularity_by_year = aggregate(data$popularity, by = list(year = data$year), mean)
 mean_popularity_by_year = reshape2::melt(mean_popularity_by_year, id.vars = "year")
 
@@ -411,9 +411,9 @@ Since the popularity is based also on whether the track was recently played, we 
 
 In order to be able to explain the model but also utilize the year in our predictions, we will use the year variable to interact with all the other variables, and then we can select each year and see how the parameters of the other variables change. For example, by interacting the year with the rest we will be able to select the year 2023 and see how a song should be in order to maximize its chances of popularity in 2023.
 
-Despite all that, we are still curious to see the variation in the characteristics of songs across different years, and see what features of songs from different years contribute to its popularity right now. Let's see the mean of each variable as a function of the year, and also a plot of correlation with the popularity by year.
+Despite all that, we are still curious to see the variation in the characteristics of songs across different years, and see what features of songs from different years contribute to its popularity right now. Let's see the mean of each variable as a function of the year.
 
-```{r, fig.width=25, fig.height=8}
+```{r, fig.width=25, fig.height=10}
 mean_data = aggregate(data[, num_vars], by = list(year = data$year), mean)
 mean_data = subset(mean_data, select = -c(popularity, tempo, duration_m, loudness))
 mean_melted = reshape2::melt(mean_data, id.vars = "year")
@@ -428,7 +428,11 @@ ggplot(mean_melted, aes(x = year, y = value, group = variable, color = variable)
         text = element_text(size = 22))
 ```
 
-```{r, fig.width=25, fig.height=8}
+To our surprise, there are no significant trends in the means over the years. The only visible changes are the drop in the valence which generally means that songs became sadder, and the rise and fall of energy that reached a peak around 2010.
+
+Let's do the the same plot but for the correlation of each variable with the popularity over the years.
+
+```{r, fig.width=25, fig.height=10}
 cor_data = data.frame(year = unique(data$year))
 cor_data$year = as.numeric(as.character(cor_data$year))
 
@@ -455,9 +459,9 @@ ggplot(cor_melted, aes(x = year, y = value, group = variable, color = variable))
         text = element_text(size = 22))
 ```
 
-To our surprise, there are no significant trends in the means over the years. The only visible changes are the drop in the valence which generally means that songs became sadder, and the rise and fall of energy that reached a peak around 2010.
-
 In the correlations plot we see a clear rise in the impact danceability and energy have on the popularity, especially after 2020. Groovy energetic songs are becoming more and more likable. The duration went from 0.0 to almost -0.2 at some point, which highlights that popular songs are getting shorter.
+
+We hope that after building and analyzing the final model we will have more meaningful insights.
 
 Now let's see how the time signature, key and mode affect the popularity.
 
@@ -733,7 +737,7 @@ In order to compare the different models diagnostics and performance, let's view
 ```{r}
 check_results = rbind(model_add_full_check, model_add_quant_trans_check, model_add_quant_no_vif_check, model_int_quant_trans_check, model_explain_check)
 kable_table = kable(check_results, format = "html", caption = "Model Test Results")
-head(kable_table, 5)
+print(kable_table)
 ```
 
 One observation to make is that all the models failed the Shapiro-Wilk and Breusch-Pagan tests. Despite our efforts and experiments, the data is very challenging. However, we can see in the Q-Q and fitted vs. residuals plots that the different models do differ in their violations of the assumptions, which we will take into account.
