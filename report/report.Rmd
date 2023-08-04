@@ -3,10 +3,10 @@ title: "Explaining Song Popularity"
 subtitle: "STAT 420, Summer 2023, UIUC - Final Data Project"
 author: "Soumya Nanda, Jonas Jansen, Noam Isachar"
 output:
-  html_document:
+  pdf_document: default
   theme: readable
   toc: yes
-  pdf_document: default
+  html_document:
 urlcolor: cyan
 ---
 
@@ -734,10 +734,9 @@ plot_model(model_explain)
 
 In order to compare the different models diagnostics and performance, let's view them in a table.
 
-```{r}
+```{r message=FALSE, warning=FALSE}
 check_results = rbind(model_add_full_check, model_add_quant_trans_check, model_add_quant_no_vif_check, model_int_quant_trans_check, model_explain_check)
-kable_table = kable(check_results, format = "html", caption = "Model Test Results")
-print(kable_table)
+check_results
 ```
 
 One observation to make is that all the models failed the Shapiro-Wilk and Breusch-Pagan tests. Despite our efforts and experiments, the data is very challenging. However, we can see in the Q-Q and fitted vs. residuals plots that the different models do differ in their violations of the assumptions, which we will take into account.
